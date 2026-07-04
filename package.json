@@ -1,0 +1,24 @@
+{
+  "name": "jarvis",
+  "version": "1.0.0",
+  "description": "JARVIS - AI Personal Assistant for Windows with voice, automation, and deep system integration",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "author": {
+    "name": "YOUR_NAME",
+    "email": "YOUR_EMAIL"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/YOUR_GITHUB_USERNAME/jarvis"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^30.0.0"
+  },
+  "dependencies": {
+    "ws": "^8.21.0"
+  }
+}

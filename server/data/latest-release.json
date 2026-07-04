@@ -1,0 +1,15 @@
+{
+  "version": "1.0.0",
+  "title": "JARVIS v1.0.0",
+  "summary": "Primera versión estable. Voz en tiempo real, automatización, integraciones.",
+  "url": "https://github.com/YOUR_GITHUB_USERNAME/jarvis/releases/tag/v1.0.0",
+  "publishedAt": "2026-07-03T00:00:00.000Z",
+  "notes": [
+    "Voz en tiempo real con Gemini WebSocket",
+    "Control de Windows (apps, archivos, PowerShell)",
+    "Integraciones: Gmail, GitHub, OpenWeatherMap, Spotify",
+    "Panel de diagnóstico y supervisor",
+    "Sistema de memoria persistente",
+    "Modo local sin cuenta en la nube"
+  ]
+}

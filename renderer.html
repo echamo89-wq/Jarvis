@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' http://localhost:3001 https://generativelanguage.googleapis.com wss://generativelanguage.googleapis.com https://api.github.com https://api.openweathermap.org https://gmail.googleapis.com https://oauth2.googleapis.com https://www.googleapis.com https://accounts.google.com; img-src 'self' data:; media-src 'self' blob:; frame-src 'self' http://localhost:3001 https://accounts.google.com https://www.youtube.com; base-uri 'self'; object-src 'none';">
+  <title>JARVIS</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Orbitron:wght@400;600;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <input type="file" id="file-input" accept=".txt,.md,.json,.csv,.log,.js,.py,.html,.css,.xml,.yaml,.yml,.ini,.cfg,.env,.pdf,.docx,.xlsx,.pptx,.ts,.jsx,.tsx,.vue,.sql,.sh,.bat,.ps1,image/*,audio/*" multiple style="display:none">
+  <input type="file" id="focus-file-input" accept=".txt,.md,.json,.csv,.log,.js,.py,.html,.css,.xml,.yaml,.yml,.ini,.cfg,.env,.pdf,.docx,.xlsx,.pptx,.ts,.jsx,.tsx,.vue,.sql,.sh,.bat,.ps1,image/*,audio/*" multiple style="display:none">
+  <textarea id="text-input" style="display:none"></textarea>
+  <div id="send-btn" style="display:none"></div>
+
+  <!-- ONBOARDING / AUTH OVERLAY -->
+  <div class="auth-overlay" id="auth-overlay">
+    <div class="auth-modal" id="auth-modal">
+
+      <!-- Step 1: Welcome + YouTube video -->
+      <div class="auth-step" id="auth-step-welcome">
+        <div class="auth-header">
+          <h2>Bienvenido a JARVIS</h2>
+          <p>Tu asistente personal con inteligencia artificial</p>
+        </div>
+
+        <div class="auth-welcome-features">
+          <div class="auth-feature"><span>🗣</span> Voz en tiempo real</div>
+          <div class="auth-feature"><span>🖥</span> Control de Windows</div>
+          <div class="auth-feature"><span>🌐</span> Investigación web</div>
+          <div class="auth-feature"><span>📧</span> Gmail integrado</div>
+          <div class="auth-feature"><span>⚡</span> Automatización</div>
+          <div class="auth-feature"><span>🔧</span> 25+ herramientas</div>
+        </div>
+        <button class="auth-btn" id="auth-welcome-btn">Comenzar</button>
+      </div>
+
+      <!-- Step 2: Gemini API Key -->
+      <div class="auth-step" id="auth-step-gemini-key">
+        <div class="auth-header">
+          <h2>API Key de Gemini</h2>
+          <p>Necesitas una clave API de Google Gemini para usar JARVIS</p>
+        </div>
+        <div class="auth-field">
+          <label>Tu API Key de Gemini</label>
+          <div class="setup-key-field">
+            <input type="password" class="auth-input" id="auth-gemini-key-input" placeholder="Pega tu API key aquí" style="flex:1;">
+            <button class="setup-toggle-btn" id="auth-gemini-toggle" style="position:relative;transform:none;margin-left:8px;">👁</button>
+          </div>
+        </div>
+        <p style="font-size:0.65rem;color:var(--text-dim);margin:-4px 0 8px;">Consíguela en <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:var(--primary);">aistudio.google.com</a></p>
+        <div class="auth-error" id="auth-gemini-error" style="display:none"></div>
+        <div id="auth-gemini-status" style="display:none;font-size:0.7rem;padding:6px 10px;border-radius:6px;margin-bottom:8px;"></div>
+        <button class="auth-btn" id="auth-gemini-save-btn" disabled>Guardar y continuar</button>
+        <button class="auth-skip-btn" id="auth-gemini-skip-btn" style="margin-top:4px;">Probar después en configuración</button>
+      </div>
+
+    </div>
+  </div>
+
+
+
+  <!-- MAIN LAYOUT -->
+  <div class="app-layout">
+    <header class="top-bar">
+      <div class="top-bar-left">
+        <span class="app-title">JARVIS</span>
+        <span class="top-bar-separator"></span>
+        <span class="user-badge" id="user-badge" title="Haz clic para editar tu perfil"></span>
+        <span class="top-bar-separator" id="badge-separator" style="display:none"></span>
+        <span class="status-indicator" id="chat-header-status">SISTEMAS ONLINE</span>
+        <span class="rec-indicator" id="rec-indicator" style="display:none">● Grabando</span>
+      </div>
+      <div class="top-bar-center"></div>
+      <div class="top-bar-right">
+        <button id="docs-btn" class="top-btn" title="Investigaciones">&#128196;</button>
+        <button id="new-chat-btn" class="top-btn" title="Nuevo chat">+</button>
+        <button id="integrations-btn" class="top-btn" title="Integraciones">&#9678;</button>
+        <button id="config-trigger" class="top-btn" title="Configuracion">&#9881;</button>
+        <button id="reconnect-btn" class="top-btn" title="Reconectar">&#8635;</button>
+        <button id="minimize-btn" class="window-control-btn" title="Minimizar">_</button>
+        <button id="close-btn" class="window-control-btn" title="Cerrar">X</button>
+      </div>
+    </header>
+
+
+
+    <div class="conn-bar" id="conn-bar" style="display:none">Conexion perdida...</div>
+
+    <div class="app-body-container">
+      <div class="app-main-view">
+
+        <!-- REACTOR: logo animado de JARVIS (focus-reactor original + HUD rings overlay) -->
+        <div class="reactor-viewport-area">
+          <div id="focus-reactor-el" class="focus-reactor idle">
+            <div class="ring focus-ring-1"></div>
+            <div class="ring focus-ring-2"></div>
+            <div class="ring focus-ring-3"></div>
+            <div class="ring focus-ring-4"></div>
+            <div class="focus-speech-ring"></div>
+            <div class="focus-core-aura"></div>
+            <div class="focus-core">
+              <div class="honeycomb-bg"></div>
+              <span class="core-text">JARVIS</span>
+            </div>
+          </div>
+          <!-- HUD overlay rings (nuevos, decorativos) -->
+          <div class="hud-circle-outer"></div>
+          <div class="hud-circle-inner"></div>
+        </div>
+
+        <!-- PROGRESS: indicador de herramientas en ejecucion -->
+        <div id="progress-area" class="progress-area" style="display:none">
+          <div id="progress-steps" class="prog-steps"></div>
+          <div id="progress-pct" class="prog-pct" style="display:none">
+            <div class="prog-pct-bar">
+              <div id="prog-pct-fill" class="prog-pct-fill"></div>
+            </div>
+            <span id="prog-pct-text" class="prog-pct-label">0%</span>
+          </div>
+        </div>
+
+        <!-- CLIMA: panel de pronostico visual -->
+        <div id="weather-panel" class="weather-panel" style="display:none">
+          <div class="wp-header">
+            <span id="wp-city" class="wp-city">—</span>
+            <span id="wp-current" class="wp-current"></span>
+            <button id="wp-close" class="wp-close">X</button>
+          </div>
+          <div id="wp-cards" class="wp-cards"></div>
+        </div>
+
+        <!-- PANEL DE INFORMACION: informes, noticias, contenido enriquecido -->
+        <div id="info-panel" class="info-panel" style="display:none">
+          <div class="ip-header">
+            <span id="ip-icon" class="ip-icon">📄</span>
+            <span id="ip-title" class="ip-title">INFORME</span>
+            <span id="ip-source" class="ip-source"></span>
+            <button id="ip-close" class="ip-close">X</button>
+          </div>
+          <div id="ip-body" class="ip-body">
+            <div id="ip-subtitle" class="ip-subtitle"></div>
+            <div id="ip-summary" class="ip-summary"></div>
+            <div id="ip-points" class="ip-points"></div>
+            <div id="ip-details" class="ip-details"></div>
+            <div id="ip-sources" class="ip-sources" style="display:none"></div>
+          </div>
+          <div id="ip-footer" class="ip-footer">
+            <button id="ip-download-btn" class="ip-action">📥 Descargar</button>
+            <button id="ip-copy-btn" class="ip-action">📋 Copiar</button>
+            <button id="ip-view-btn" class="ip-action">👁 Ver completo</button>
+          </div>
+        </div>
+
+        <!-- MENSAJE: burbuja premium de conversación -->
+        <div id="message-area" class="message-area">
+          <div class="msg-glow"></div>
+          <span id="msg-label" class="msg-label">▶ SISTEMAS ONLINE</span>
+          <p id="msg-text" class="msg-text"></p>
+          <div class="msg-indicator" id="msg-indicator"></div>
+        </div>
+
+        <!-- BARRA DE CHAT -->
+        <div class="chat-bar" id="chat-bar">
+          <button class="mic-btn" id="mic-btn" title="Microfono">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+          </button>
+          <button class="attach-btn" id="attach-btn" title="Adjuntar archivo">+</button>
+          <div class="chat-input-wrap">
+            <textarea id="chat-text-input" class="chat-textarea" placeholder="Escribe un mensaje..." rows="1" autocomplete="off"></textarea>
+          </div>
+          <button class="send-btn" id="chat-send-btn" title="Enviar">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+
+  <!-- RIGHT PANEL (diagnostics) -->
+  <aside class="right-panel collapsed" id="right-panel">
+    <div class="rp-header">
+      <span>Diagnostico</span>
+      <button id="console-toggle-btn" class="toggle-btn" title="Alternar panel de diagnóstico">◀</button>
+      <button id="console-close-btn" class="toggle-btn" title="Cerrar panel">X</button>
+    </div>
+    <div class="rp-section">
+      <div class="rp-section-title">Estado</div>
+      <div class="rp-row"><span>Estado:</span> <span id="diag-state">IDLE</span></div>
+      <div class="rp-row"><span>Mensajes:</span> <span id="diag-msg-count">0</span></div>
+      <div class="rp-row"><span>Tools:</span> <span id="diag-tool-count">0</span></div>
+      <div class="rp-row"><span>Mic:</span> <span id="diag-mic-status">OFF</span></div>
+      <div class="rp-row"><span>WS:</span> <span id="diag-ws-status">DISCONNECTED</span></div>
+      <div class="rp-row"><span>Latencia:</span> <span id="diag-latency">-</span></div>
+    </div>
+    <div class="rp-section">
+      <div class="rp-section-title">Pensamiento</div>
+      <div class="thinking-toggle" id="thinking-toggle">
+        Pensando... <span class="toggle-icon">v</span>
+      </div>
+      <div class="thinking-body" id="thinking-body">
+        <div class="thinking-placeholder">Sin procesos activos.</div>
+      </div>
+    </div>
+    <div class="rp-section">
+      <div class="rp-section-title">Procesos</div>
+      <div id="diag-process-list" class="diag-process-list">Cargando...</div>
+    </div>
+    <div class="rp-section">
+      <div class="rp-section-title">Monitoreo</div>
+      <button id="supervisor-btn" class="rp-btn">Reporte del Supervisor</button>
+      <button id="sys-status-btn" class="rp-btn">Estado del Sistema</button>
+      <button id="screenshot-btn" class="rp-btn">Captura de Pantalla</button>
+    </div>
+  </aside>
+
+  <!-- CONFIG MODAL -->
+  <div class="config-overlay" id="config-modal">
+    <div class="config-modal">
+      <div class="config-header">
+        <h3>Configuracion</h3>
+        <button id="modal-close" class="config-close">X</button>
+      </div>
+      <div class="config-tabs">
+        <button class="tab-btn active" data-tab="tab-general">General</button>
+        <button class="tab-btn" data-tab="tab-voice">Voz</button>
+        <button class="tab-btn" data-tab="tab-rules">Reglas</button>
+        <button class="tab-btn" data-tab="tab-api-keys">Proveedores</button>
+        <button class="tab-btn" data-tab="tab-feedback">Soporte</button>
+        <button class="tab-btn" data-tab="tab-advanced">Avanzado</button>
+      </div>
+      <div class="config-tab-content">
+        <div class="tab-pane active" id="tab-general">
+          <div class="config-field">
+            <label>Nombre de usuario</label>
+            <input type="text" id="username-input" class="config-input" placeholder="Santiago">
+          </div>
+          <div class="config-field" style="margin-top:8px;">
+            <label>Tratamiento (cómo quieres que JARVIS te llame)</label>
+            <input type="text" id="title-input" class="config-input" placeholder="señor, don, licenciado...">
+          </div>
+          <div class="config-field">
+            <label>Idioma</label>
+            <select id="lang-select" class="config-select">
+              <option value="es">Espanol</option>
+              <option value="en">English</option>
+            </select>
+          </div>
+          <div class="config-field">
+            <label>Personalidad</label>
+            <select id="personality-select" class="config-select">
+              <option value="professional">Profesional</option>
+              <option value="companion">Compañero</option>
+              <option value="friendly">Amigable</option>
+              <option value="strategic">Estratégico</option>
+              <option value="humorous">Humorístico</option>
+            </select>
+          </div>
+          <div class="config-field">
+            <label>Longitud de respuestas</label>
+            <select id="length-select" class="config-select">
+              <option value="normal">Normal</option>
+              <option value="concise">Conciso</option>
+              <option value="detailed">Detallado</option>
+            </select>
+          </div>
+          <div class="config-field">
+            <label>Tamano de fuente</label>
+            <input type="range" id="font-size-slider" min="0" max="4" step="1">
+          </div>
+          <div class="config-field">
+            <label>Ciudad (para el clima)</label>
+            <input type="text" id="city-input" class="config-input" placeholder="Madrid">
+          </div>
+        </div>
+        <div class="tab-pane" id="tab-voice">
+          <div class="config-field">
+            <label>Voz de Jarvis</label>
+            <select id="voice-select" class="config-select">
+              <option value="Fenrir">Fenrir (Gemini)</option>
+              <option value="Puck">Puck (Gemini)</option>
+              <option value="Charon">Charon (Gemini)</option>
+            </select>
+          </div>
+        </div>
+        <div class="tab-pane" id="tab-rules">
+          <div class="config-field">
+            <label>Reglas personalizadas</label>
+            <textarea id="rules-textarea" class="config-textarea" placeholder="Ej: Siempre responde en espanol..."></textarea>
+          </div>
+          <div class="config-field">
+            <label>Contexto adicional</label>
+            <textarea id="context-textarea" class="config-textarea" placeholder="Informacion que Jarvis debe saber sobre ti..."></textarea>
+          </div>
+        </div>
+        <div class="tab-pane" id="tab-api-keys">
+          <div class="config-field">
+            <label>API Key de Gemini</label>
+            <div class="setup-key-field">
+              <input type="password" id="config-gemini-key" class="setup-key-input" placeholder="AIzaSy...">
+              <button class="setup-toggle-btn" id="config-gemini-toggle" type="button">👁</button>
+            </div>
+            <p class="setup-key-hint">Consigue una clave en <a href="https://aistudio.google.com/" target="_blank">Google AI Studio</a>.</p>
+          </div>
+          <div class="config-field" style="margin-top: 10px;">
+            <button class="config-btn primary" id="config-test-gemini-btn">Probar Clave</button>
+            <div id="config-gemini-status" class="setup-key-error" style="display:none; margin-top:8px;"></div>
+          </div>
+        </div>
+        <div class="tab-pane" id="tab-feedback">
+          <div style="font-size:0.7rem; color:var(--text-dim); margin-bottom:8px; line-height: 1.3;">
+            Envía tus comentarios o reportes de errores directamente al desarrollador. Soporta archivos de hasta 25MB.
+          </div>
+          <div class="config-field">
+            <label>Descripción / Mensaje</label>
+            <textarea id="feedback-message" class="config-textarea" placeholder="Escribe aquí tu reporte..." style="min-height:90px;"></textarea>
+          </div>
+          <div class="config-field">
+            <label>Adjuntar Captura / Vídeo (Máx. 25MB)</label>
+            <input type="file" id="feedback-file" class="config-input" accept="image/*,video/*" style="font-size:0.75rem; padding: 6px 10px;">
+          </div>
+          <div class="config-field" style="margin-top: 10px;">
+            <button class="config-btn primary" id="config-send-feedback-btn">Enviar Reporte</button>
+            <div id="config-feedback-status" class="int-result" style="display:none; margin-top:8px;"></div>
+          </div>
+        </div>
+        <div class="tab-pane" id="tab-advanced">
+          <div class="config-field" style="flex-direction:row;align-items:center;gap:8px;">
+            <input type="checkbox" id="anim-toggle">
+            <label>Animaciones</label>
+          </div>
+          <div class="config-field" style="flex-direction:row;align-items:center;gap:8px;">
+            <input type="checkbox" id="sfx-toggle">
+            <label>Efectos de sonido</label>
+          </div>
+          <div class="config-field" style="flex-direction:row;align-items:center;gap:8px;">
+            <input type="checkbox" id="always-on-toggle">
+            <label>Siempre activo (modo全天候)</label>
+          </div>
+          <div class="config-field" style="flex-direction:row;align-items:center;gap:8px;">
+            <input type="checkbox" id="theme-toggle-config">
+            <label>Modo claro</label>
+          </div>
+          <div class="config-field">
+            <label>Sensibilidad del microfono</label>
+            <input type="range" id="vad-slider" min="100" max="800" step="10">
+          </div>
+          <div class="config-field" style="flex-direction:row;align-items:center;gap:8px;">
+            <button class="config-btn danger" id="clear-btn">Limpiar conversacion</button>
+            <span id="clear-confirm-span" style="display:none;gap:6px;align-items:center;">
+              <span>Seguro?</span>
+              <button class="config-btn danger small" id="confirm-yes-btn">Si</button>
+              <button class="config-btn small" id="confirm-no-btn">No</button>
+            </span>
+          </div>
+
+        </div>
+      </div>
+      <div class="config-footer">
+        <button class="config-btn" id="config-cancel-btn">Cancelar</button>
+        <button class="config-btn primary" id="config-save-btn">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- INTEGRATIONS MODAL -->
+  <div class="integrations-overlay" id="integrations-modal">
+    <div class="integrations-modal">
+      <div class="int-modal-header">
+        <h3>Integraciones</h3>
+        <button class="int-modal-close" id="int-modal-close">X</button>
+      </div>
+      <div class="int-modal-body"></div>
+      <div class="int-modal-footer">
+        <button class="config-btn" id="int-modal-close-btn">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONTEXT MENU -->
+  <div class="context-menu" id="context-menu">
+    <button id="ctx-new-chat">Nuevo chat</button>
+    <button id="ctx-export">Exportar</button>
+    <button id="ctx-config">Configuracion</button>
+  </div>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
