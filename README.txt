@@ -1,28 +1,15 @@
 # JARVIS — AI Personal Assistant for Windows
 
-<div align="center">
-
-![JARVIS](https://img.shields.io/badge/JARVIS-MK.37-00b4ff?style=for-the-badge&logo=electron&logoColor=white)
-![Electron](https://img.shields.io/badge/Electron-30.x-47848f?style=for-the-badge&logo=electron&logoColor=white)
-![Gemini](https://img.shields.io/badge/Gemini-API-4285f4?style=for-the-badge&logo=google&logoColor=white)
-![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
-
-**A Stark-inspired holographic AI assistant with real-time voice, Windows automation, and deep system integration.**
-
-</div>
-
----
-
 ## ✨ Features
 
-- 🎙️ **Real-time voice conversation** — Live WebSocket audio pipeline with Gemini
-- 🤖 **Multi-model AI** — Gemini (primary), with optional OpenAI, Anthropic & Groq support
-- 🖥️ **Windows automation** — Open apps, run PowerShell, control files and system settings
-- 🌤️ **Integrations** — Gmail, GitHub, OpenWeatherMap, Spotify
+- 🎙️ **Real-time voice conversation** — Live WebSocket audio pipeline with Gemini Live API
+- 🖥️ **Windows automation** — Open apps, run PowerShell commands, control files and system settings
+- 🌤️ **Integrations** — Gmail (OAuth device-flow), GitHub, OpenWeatherMap
+- 👁️ **Screen vision** — Understands what's on your screen via vision-language models (Qwen3-VL / Moondream)
 - 🧠 **Persistent memory** — Remembers your name, preferences, and context across sessions
 - 📊 **Diagnostics panel** — Real-time system monitoring and connection health
 - 🎨 **Holographic HUD** — Stark-inspired glassmorphic UI with animated cyber rings
-- 🔒 **Local-first** — Runs 100% on your machine. No cloud account required.
+- 🔒 **Local-first** — Runs 100% on your machine. No cloud account required beyond your Gemini API key.
 
 ---
 
@@ -31,6 +18,7 @@
 ### Prerequisites
 
 - [Node.js](https://nodejs.org/) v18 or higher
+- Windows 10/11 (PowerShell automation features are Windows-only)
 - A **Gemini API Key** — get one free at [Google AI Studio](https://aistudio.google.com/apikey)
 
 ### Installation
@@ -40,13 +28,10 @@
 git clone https://github.com/YOUR_GITHUB_USERNAME/jarvis.git
 cd jarvis
 
-# 2. Install root dependencies (Electron)
+# 2. Install dependencies
 npm install
 
-# 3. Install server dependencies
-cd server && npm install && cd ..
-
-# 4. Configure environment
+# 3. Configure environment
 cp .env.example .env
 ```
 
@@ -59,16 +44,6 @@ GEMINI_API_KEY=your_key_here
 ```
 
 > **Tip:** You can also enter the API key directly from the app's **Settings** panel — no need to edit files manually.
-
-Edit `server/.env` and generate a secure JWT secret:
-
-```bash
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-```
-
-```env
-JWT_SECRET=paste_generated_secret_here
-```
 
 ### Run
 
@@ -84,45 +59,30 @@ npm start
 jarvis/
 ├── main.js              # Electron main process
 ├── preload.js           # Secure IPC bridge
-├── renderer.html        # Main UI shell
+├── renderer.html         # Main UI shell
 ├── css/
 │   └── style.css        # Holographic HUD styles
-├── js/
-│   ├── config/          # App configuration & settings
-│   ├── chat/            # Message rendering & history
-│   ├── audio/           # Voice input/output pipeline
-│   ├── system/          # Error reporting, apps, PowerShell
-│   ├── ui/              # UI components & modals
-│   ├── engines/         # Three.js 3D reactor engine
-│   └── state/           # Global state store
-├── server/              # Local Express backend
-│   ├── routes/          # API endpoints (auth, feedback, proxy)
-│   ├── models/          # Database models
-│   └── data/            # SQLite DB & release data
-└── main/                # Electron helper modules
+└── js/
+    ├── state/           # Global state store (IDLE / CONNECTING / LISTENING / SPEAKING / WORKING / ERROR)
+    ├── chat/            # Message rendering & history
+    ├── audio/           # Voice input/output pipeline
+    ├── tools/            # Tool definitions (GitHub, Gmail, weather, PC control, vision)
+    ├── system/           # Error reporting, app launching, PowerShell execution
+    └── engine/           # WebSocket engine — connection to Gemini Live API
 ```
+
+> Pure ES Modules throughout — no frameworks or bundlers, no external dependencies beyond `electron` and `ws`.
 
 ---
 
 ## ⚙️ Environment Variables
 
-### Root `.env`
-
 | Variable | Description |
 |---|---|
-| `GEMINI_API_KEY` | Your Google Gemini API key |
-
-### `server/.env`
-
-| Variable | Description |
-|---|---|
-| `PORT` | Server port (default: `3001`) |
-| `JWT_SECRET` | Secret for JWT signing (generate randomly) |
-| `NODE_ENV` | `development` or `production` |
-| `GEMINI_API_KEY` | Gemini key (optional, can use root .env) |
-| `OPENAI_API_KEY` | OpenAI key (optional) |
-| `ANTHROPIC_API_KEY` | Anthropic Claude key (optional) |
-| `GROQ_API_KEY` | Groq key (optional) |
+| `GEMINI_API_KEY` | Your Google Gemini API key (required) |
+| `OPENWEATHER_API_KEY` | For weather integration (optional) |
+| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | For GitHub integration (optional) |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | For Gmail OAuth device-flow (optional) |
 
 ---
 
@@ -133,7 +93,29 @@ On first launch, JARVIS will guide you through an onboarding tour:
 1. Enter your **name** and preferred **language**
 2. Paste your **Gemini API key** and click **Test Key**
 3. Set your **city** for weather integration (optional)
-4. Click **Save & Start**
+4. Connect **GitHub** / **Gmail** if you want those integrations active
+5. Click **Save & Start**
+
+---
+
+## 🛠️ Troubleshooting
+
+| Issue | Likely cause / fix |
+|---|---|
+| No audio input detected | Check Windows microphone permissions for the app |
+| WebSocket disconnects randomly | Verify your Gemini API key quota hasn't been exceeded |
+| PowerShell commands fail silently | Commands run with `-NoProfile -NonInteractive -ExecutionPolicy Bypass`; check the diagnostics panel for stderr output |
+| App crashes on close | Known issue — renderer can crash when closing the window while a WebSocket session is active (see Roadmap) |
+
+---
+
+## 🗺️ Roadmap
+
+- [ ] Fix renderer crash on window close with an active WebSocket session
+- [ ] Resolve intermittent audio input error
+- [ ] Eliminate audio echo/feedback loop
+- [ ] Polish and modernize the HUD interface
+- [ ] Optional packaging for distribution (installer)
 
 ---
 
@@ -143,9 +125,8 @@ On first launch, JARVIS will guide you through an onboarding tour:
 |---|---|
 | Desktop shell | Electron 30 |
 | UI | Vanilla HTML/CSS/JS (ES Modules) |
-| 3D Engine | Three.js |
-| AI | Google Gemini API (WebSocket) |
-| Backend | Express.js + SQLite |
+| AI | Google Gemini Live API (WebSocket) |
+| Vision | Qwen3-VL (recommended) / Moondream (lightweight fallback) |
 | Audio | Web Audio API + AudioWorklet |
 
 ---
@@ -154,8 +135,13 @@ On first launch, JARVIS will guide you through an onboarding tour:
 
 Pull requests are welcome. For major changes, please open an issue first to discuss what you'd like to change.
 
+1. Fork the repo
+2. Create a feature branch (`git checkout -b feature/my-feature`)
+3. Commit your changes
+4. Open a PR describing the change and why it's needed
+
 ---
 
 ## 📄 License
 
-[MIT](LICENSE)
+This project is licensed under the [MIT License](LICENSE).
