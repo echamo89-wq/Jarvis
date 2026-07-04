@@ -1,11 +1,11 @@
-# JARVIS — AI Personal Assistant for Windows
+# 💠 JARVIS — AI Personal Assistant for Windows
 
 <div align="center">
 
-![JARVIS](https://img.shields.io/badge/JARVIS-MK.37-00b4ff?style=for-the-badge&logo=electron&logoColor=white)
-![Electron](https://img.shields.io/badge/Electron-30.x-47848f?style=for-the-badge&logo=electron&logoColor=white)
-![Gemini](https://img.shields.io/badge/Gemini-API-4285f4?style=for-the-badge&logo=google&logoColor=white)
-![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
+[![JARVIS](https://img.shields.io/badge/JARVIS-MK.37-00b4ff?style=for-the-badge&logo=electron&logoColor=white)](https://github.com/echamo89-wq/Jarvis)
+[![Electron](https://img.shields.io/badge/Electron-30.x-47848f?style=for-the-badge&logo=electron&logoColor=white)](https://www.electronjs.org/)
+[![Gemini](https://img.shields.io/badge/Gemini-API-4285f4?style=for-the-badge&logo=google&logoColor=white)](https://deepmind.google/technologies/gemini/)
+[![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 
 **A Stark-inspired holographic AI assistant with real-time voice, Windows automation, and deep system integration.**
 
@@ -15,14 +15,14 @@
 
 ## ✨ Features
 
-- 🎙️ **Real-time voice conversation** — Live WebSocket audio pipeline with Gemini
-- 🤖 **Multi-model AI** — Gemini (primary), with optional OpenAI, Anthropic & Groq support
-- 🖥️ **Windows automation** — Open apps, run PowerShell, control files and system settings
-- 🌤️ **Integrations** — Gmail, GitHub, OpenWeatherMap, Spotify
-- 🧠 **Persistent memory** — Remembers your name, preferences, and context across sessions
-- 📊 **Diagnostics panel** — Real-time system monitoring and connection health
-- 🎨 **Holographic HUD** — Stark-inspired glassmorphic UI with animated cyber rings
-- 🔒 **Local-first** — Runs 100% on your machine. No cloud account required.
+*   🎙️ **Real-time voice conversation** — Live WebSocket audio pipeline with Gemini
+*   🤖 **Multi-model AI** — Gemini (primary), with optional OpenAI, Anthropic & Groq support
+*   🖥️ **Windows automation** — Open apps, run PowerShell, control files and system settings
+*   🌤️ **Integrations** — Gmail, GitHub, OpenWeatherMap, Spotify, Telegram, Discord, Notion, Slack
+*   🧠 **Persistent memory** — Remembers your name, preferences, and context across sessions
+*   📊 **Diagnostics panel** — Real-time system monitoring and connection health
+*   🎨 **Holographic HUD** — Stark-inspired glassmorphic UI with animated cyber rings
+*   🔒 **Local-first** — Runs 100% on your machine. No cloud account required.
 
 ---
 
@@ -30,15 +30,15 @@
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) v18 or higher
-- A **Gemini API Key** — get one free at [Google AI Studio](https://aistudio.google.com/apikey)
+*   [Node.js](https://nodejs.org/) v18 or higher
+*   A **Gemini API Key** — get one free at [Google AI Studio](https://aistudio.google.com/apikey)
 
 ### Installation
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/YOUR_GITHUB_USERNAME/jarvis.git
-cd jarvis
+git clone https://github.com/echamo89-wq/Jarvis.git
+cd Jarvis
 
 # 2. Install root dependencies (Electron)
 npm install
@@ -58,7 +58,7 @@ Edit `.env` in the root directory and add your Gemini API key:
 GEMINI_API_KEY=your_key_here
 ```
 
-> **Tip:** You can also enter the API key directly from the app's **Settings** panel — no need to edit files manually.
+> 💡 **Tip:** You can also enter the API key directly from the app's **Settings** panel — no need to edit files manually.
 
 Edit `server/.env` and generate a secure JWT secret:
 
@@ -80,8 +80,8 @@ npm start
 
 ## 🗂️ Project Structure
 
-```
-jarvis/
+```text
+Jarvis/
 ├── main.js              # Electron main process
 ├── preload.js           # Secure IPC bridge
 ├── renderer.html        # Main UI shell
@@ -109,13 +109,13 @@ jarvis/
 ### Root `.env`
 
 | Variable | Description |
-|---|---|
+| :--- | :--- |
 | `GEMINI_API_KEY` | Your Google Gemini API key |
 
 ### `server/.env`
 
 | Variable | Description |
-|---|---|
+| :--- | :--- |
 | `PORT` | Server port (default: `3001`) |
 | `JWT_SECRET` | Secret for JWT signing (generate randomly) |
 | `NODE_ENV` | `development` or `production` |
@@ -130,17 +130,17 @@ jarvis/
 
 On first launch, JARVIS will guide you through an onboarding tour:
 
-1. Enter your **name** and preferred **language**
-2. Paste your **Gemini API key** and click **Test Key**
-3. Set your **city** for weather integration (optional)
-4. Click **Save & Start**
+1.  Enter your **name** and preferred **language**
+2.  Paste your **Gemini API key** and click **Test Key**
+3.  Set your **city** for weather integration (optional)
+4.  Click **Save & Start**
 
 ---
 
 ## 📋 Tech Stack
 
 | Layer | Technology |
-|---|---|
+| :--- | :--- |
 | Desktop shell | Electron 30 |
 | UI | Vanilla HTML/CSS/JS (ES Modules) |
 | 3D Engine | Three.js |
@@ -158,4 +158,4 @@ Pull requests are welcome. For major changes, please open an issue first to disc
 
 ## 📄 License
 
-[MIT](LICENSE)
+This project is licensed under the [MIT License](LICENSE).
