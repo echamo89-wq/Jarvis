@@ -144,7 +144,8 @@ function createSplashWindow() {
     icon: path.join(__dirname, 'build', 'icon.png'),
     webPreferences: {
       nodeIntegration: true,
-      contextIsolation: false
+      contextIsolation: false,
+      sandbox: false
     },
     show: false
   });
