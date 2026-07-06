@@ -96,14 +96,76 @@ function _startBackendServer() {
   }
 }
 
-function createWindow() {
-  const mainWindow = new BrowserWindow({
+// ─── Splash Window ──────────────────────────────────────────────────────────
+let _splashWindow = null;
+let _mainWindow = null;
+let _splashPreloadFinished = false;
+let _splashTimeout = null;
+
+function _sendSplashProgress(pct, text) {
+  if (_splashWindow && !_splashWindow.isDestroyed()) {
+    _splashWindow.webContents.send('splash-progress', { pct, text });
+  }
+  console.log(`\x1b[36m[SPLASH] ${pct}% — ${text}\x1b[0m`);
+}
+
+function _showMainWindowFallback() {
+  if (_splashPreloadFinished) return;
+  _splashPreloadFinished = true;
+  console.warn('\x1b[33m[SPLASH] Límite de carga excedido (>8.5s). Forzando despliegue de interfaz principal.\x1b[0m');
+  
+  if (_splashTimeout) {
+    clearTimeout(_splashTimeout);
+    _splashTimeout = null;
+  }
+  if (_splashWindow && !_splashWindow.isDestroyed()) {
+    _splashWindow.close();
+    _splashWindow = null;
+  }
+  if (_mainWindow && !_mainWindow.isDestroyed()) {
+    _mainWindow.show();
+    _mainWindow.focus();
+  }
+}
+
+function createSplashWindow() {
+  _splashPreloadFinished = false;
+  _splashTimeout = setTimeout(_showMainWindowFallback, 8500);
+
+  _splashWindow = new BrowserWindow({
+    width: 380,
+    height: 460,
+    frame: false,
+    transparent: false,
+    resizable: false,
+    alwaysOnTop: true,
+    center: true,
+    backgroundColor: '#000000',
+    icon: path.join(__dirname, 'build', 'icon.png'),
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false
+    },
+    show: false
+  });
+
+  _splashWindow.loadFile('splash.html');
+  _splashWindow.once('ready-to-show', () => {
+    _splashWindow.show();
+  });
+
+  return _splashWindow;
+}
+
+function createMainWindow() {
+  _mainWindow = new BrowserWindow({
     width: 900,
     height: 700,
     frame: false,
     transparent: false,
     backgroundColor: '#000000',
     icon: path.join(__dirname, 'build', 'icon.png'),
+    show: false,  // Oculta hasta que la splash termine
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -113,8 +175,7 @@ function createWindow() {
   });
 
   // ─── Redirigir console del renderer → terminal ──────────────
-  // Adjuntado AQUI (antes del loadFile) para capturar TODOS los mensajes
-  mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
+  _mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
     const ts = new Date().toLocaleTimeString('es', { hour12: false });
     const src = sourceId ? sourceId.replace(/.*[\/\\]/, '').replace(/\?.*$/, '') : '';
     const loc = src ? ` [${src}:${line}]` : '';
@@ -142,38 +203,34 @@ function createWindow() {
     }
   });
 
-  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, url) => {
+  _mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, url) => {
     console.error(`\x1b[31m[MAIN] RENDERER FAIL LOAD: ${errorDescription} (${errorCode}) url=${url}\x1b[0m`);
   });
 
-  mainWindow.webContents.on('render-process-gone', (event, details) => {
+  _mainWindow.webContents.on('render-process-gone', (event, details) => {
     console.error(`\x1b[31m[MAIN] RENDERER CRASHED: reason=${details.reason} exitCode=${details.exitCode}\x1b[0m`);
   });
 
-  // Abrir target="_blank" en el navegador del usuario
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+  _mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
     return { action: 'deny' };
   });
 
-  mainWindow.loadFile('renderer.html');
+  _mainWindow.loadFile('renderer.html');
 
-  // Abre las DevTools si está en modo desarrollo (por defecto activado localmente)
   if (process.env.NODE_ENV === 'development' || process.env.DEV_TOOLS === 'true') {
-    mainWindow.webContents.openDevTools({ mode: 'detach' });
+    _mainWindow.webContents.openDevTools({ mode: 'detach' });
   }
 
   if (process.argv.includes('--reset')) {
-    // Limpiar .env y API key del proceso
     try {
       const envPath = path.join(__dirname, '.env');
       fs.writeFileSync(envPath, '# Reset por --reset\n');
     } catch(e) {}
     delete process.env.GEMINI_API_KEY;
     console.log('[MAIN] --reset: API key y .env limpiados');
-
-    mainWindow.webContents.on('did-finish-load', () => {
-      mainWindow.webContents.executeJavaScript(`
+    _mainWindow.webContents.on('did-finish-load', () => {
+      _mainWindow.webContents.executeJavaScript(`
         if (!sessionStorage.getItem('jarvis_reset_done')) {
           sessionStorage.setItem('jarvis_reset_done', '1');
           localStorage.clear();
@@ -183,16 +240,83 @@ function createWindow() {
     });
   }
 
-  return mainWindow;
+  return _mainWindow;
 }
+
+// ─── Secuencia de precarga durante la splash ─────────────────────────────────
+async function _runSplashPreload() {
+  _sendSplashProgress(5, 'Analizando contexto del sistema...');
+  await new Promise(r => setTimeout(r, 200));
+
+  // Leer memoria del disco
+  _sendSplashProgress(15, 'Cargando memoria persistente...');
+  await new Promise(r => setTimeout(r, 150));
+
+  // Verificar API key
+  _sendSplashProgress(30, 'Verificando credenciales...');
+  await new Promise(r => setTimeout(r, 200));
+
+  // Cargar archivos de configuración de sistema
+  _sendSplashProgress(45, 'Cargando protocolos de inteligencia...');
+  await new Promise(r => setTimeout(r, 300));
+
+  // Esperar que renderer.html haya cargado
+  _sendSplashProgress(60, 'Inicializando interfaz principal...');
+  await new Promise(resolve => {
+    if (_mainWindow.webContents.isLoading()) {
+      _mainWindow.webContents.once('did-finish-load', resolve);
+    } else {
+      resolve();
+    }
+  });
+
+  _sendSplashProgress(75, 'Activando motores cognitivos...');
+  await new Promise(r => setTimeout(r, 250));
+
+  _sendSplashProgress(88, 'Conectando sistemas de audio...');
+  await new Promise(r => setTimeout(r, 200));
+
+  _sendSplashProgress(96, 'Preparando conexión con Gemini...');
+  await new Promise(r => setTimeout(r, 300));
+
+  // Señal de finalización a la splash
+  _sendSplashProgress(100, 'Sistemas listos');
+  if (_splashWindow && !_splashWindow.isDestroyed()) {
+    _splashWindow.webContents.send('splash-done');
+  }
+}
+
+// ─── IPC: Splash lista para recibir mensajes
+ipcMain.on('splash-ready', () => {
+  _runSplashPreload();
+});
+
+// ─── IPC: Splash terminó animación de salida → mostrar ventana principal
+ipcMain.on('splash-finished', () => {
+  _splashPreloadFinished = true;
+  if (_splashTimeout) {
+    clearTimeout(_splashTimeout);
+    _splashTimeout = null;
+  }
+  if (_splashWindow && !_splashWindow.isDestroyed()) {
+    _splashWindow.close();
+    _splashWindow = null;
+  }
+  if (_mainWindow && !_mainWindow.isDestroyed()) {
+    _mainWindow.show();
+    _mainWindow.focus();
+  }
+});
 
 app.whenReady().then(() => {
   _startBackendServer();
-  createWindow();
+  createSplashWindow();
+  createMainWindow();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
+      createSplashWindow();
+      createMainWindow();
     }
   });
 
