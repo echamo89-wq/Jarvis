@@ -3,7 +3,7 @@ import { STATE } from '../state/constants.js';
 import { connectWebSocket } from '../Core/Connection/manager.js';
 import { ensureMicrophoneActive, restartMicrophone, isMicPipelineHealthySync } from '../audio/recorder.js';
 
-const GUARD_INTERVAL_MS = 5000;
+const GUARD_INTERVAL_MS = 8000;
 const WS_STALE_MS = 120000;
 const MIC_RESTART_MAX = 3;
 const MIC_RESTART_WINDOW_MS = 300000;
@@ -25,6 +25,34 @@ const _errorLog = [];
 
 import { createLogger } from '../utils/logger.js';
 const _log = createLogger('GUARDIAN');
+
+// Recuperación de estados de la UI/Audio stuck
+function _guardStateRecovery() {
+  const now = Date.now();
+  const state = store.getState();
+  
+  if (state === STATE.SPEAKING && (store.get('activeSources') || []).length === 0) {
+    _log('info', 'Watchdog: Speaking detectado sin fuentes de audio activas — recuperando a escucha/idle');
+    store.setState(store.get('micActive') ? STATE.LISTENING : STATE.IDLE);
+  }
+  
+  if (store.get('toolCount') > 0 && store.get('toolStartTime') && (now - store.get('toolStartTime')) > 35000) {
+    _log('warn', 'Watchdog: Contador de ejecución de herramientas atascado (excedido 35s) — reiniciando contadores');
+    store.set('toolCount', 0);
+    store.set('toolStartTime', null);
+    store.set('isExecutingTool', false);
+    store.setState(store.get('micActive') ? STATE.LISTENING : STATE.IDLE);
+  }
+  
+  if (store.get('toolCount') === 0 && state === STATE.WORKING) {
+    _log('info', 'Watchdog: Estado de procesamiento activo (WORKING) sin herramientas corriendo — recuperando');
+    store.setState(store.get('micActive') ? STATE.LISTENING : STATE.IDLE);
+  }
+  
+  if (store.get('micActive') && state === STATE.IDLE && (store.get('activeSources') || []).length === 0) {
+    store.setState(STATE.LISTENING);
+  }
+}
 
 function _recordError(context, detail) {
   const entry = { time: new Date().toISOString(), context, detail };
@@ -179,6 +207,7 @@ export function initConnectionGuardian() {
 
   _guardTimer = setInterval(async () => {
     _resumeAudioContexts();
+    _guardStateRecovery();
     await _guardWebSocket();
     await _guardMicrophone();
   }, GUARD_INTERVAL_MS);

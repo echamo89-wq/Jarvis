@@ -112,6 +112,21 @@ export async function buildSystemInstruction(memory) {
     masterPrompt || '',
     summariesText || '',
     frequentText || '',
-    `\nJOS CONTEXT: ${store.get('jos')?.getContextBlock() || 'Sistema iniciando...'}`
+    (() => {
+      const jos = store.get('jos');
+      if (!jos) return '';
+      const profile = jos.userModel.getProfileSummary();
+      const energy = jos.energy.getProfileBlock();
+      const bottleneck = jos.userModel.detectBottleneck();
+      const topPriority = jos.strategic.topPriority();
+      return [
+        `\n=== COGNITIVE STATE (JOS v2.0) ===`,
+        profile ? `USER PROFILE: ${profile}` : '',
+        energy ? `ENERGY STATE: ${energy}` : '',
+        bottleneck ? `CURRENT SYSTEM BOTTLENECK: ${bottleneck.label}` : '',
+        topPriority ? `CURRENT PRIORITY TARGET: ${topPriority.label} -> ${topPriority.objective}` : '',
+        `==================================`
+      ].filter(Boolean).join('\n');
+    })()
   ].join('\n');
 }

@@ -1,11 +1,12 @@
 import { store } from '../../state/store.js';
-import { STATE } from '../../state/constants.js';
+import { STATE, EVENTS } from '../../state/constants.js';
 import { buildSystemInstruction } from '../../config/index.js';
 import { getFunctionDeclarations } from '../../tools/registry.js';
 import { showSystemErrorMessage } from '../../chat/messages.js';
 import { updateDiagnostics } from '../../chat/diagnostics.js';
 import { handleWsMessage } from './handler.js';
 import { createLogger } from '../../utils/logger.js';
+import { bus } from '../../utils/event-bus.js';
 const _log = createLogger('WS');
 
 let _proxyCleanupFn = null;
@@ -157,6 +158,7 @@ export function connectWebSocket() {
   _setupWsProxy({
     onopen: async () => {
       cleanup();
+      bus.emit(EVENTS.WS_CONNECTED);
       updateDiagnostics('WS', 'CONECTADO');
       _hideConnectionBar();
       store.set('_wsConnecting', false);
@@ -216,6 +218,7 @@ export function connectWebSocket() {
 
     onerror: (err) => {
       cleanup();
+      bus.emit(EVENTS.WS_ERROR || 'ws:error', err);
       _log('error', `=== ERROR WEBSOCKET: ${err.message || 'desconocido'} ===`);
       try {
         updateDiagnostics('WS', 'ERROR');
@@ -230,6 +233,7 @@ export function connectWebSocket() {
 
     onclose: (event) => {
       cleanup();
+      bus.emit(EVENTS.WS_DISCONNECTED);
       store.set('_wsConnecting', false);
       store.set('lastTranscriptionTime', 0);
       _log('warn', `=== WS CERRADO === código: ${event.code} | razón: ${event.reason || 'none'} | limpio: ${event.wasClean}`);

@@ -1,12 +1,24 @@
+import { store } from '../state/store.js';
+
 export class RealityEngine {
   constructor() {
     this._situation = null;
     this._goal = null;
+    this._confidenceLevel = 85;
   }
 
   loadFromMemory(memory) {
     if (memory?.situation) this._situation = memory.situation;
     if (memory?.goal) this._goal = memory.goal;
+    if (memory?.confidenceLevel) this._confidenceLevel = memory.confidenceLevel;
+  }
+
+  toMemory() {
+    return {
+      situation: this._situation,
+      goal: this._goal,
+      confidenceLevel: this._confidenceLevel
+    };
   }
 
   setSituation(text) { this._situation = text; }
@@ -20,8 +32,14 @@ export class RealityEngine {
   }
 
   getProfileBlock() {
-    return this._situation
-      ? `SITUACIÓN ACTUAL: ${this._situation}. OBJETIVO: ${this._goal || 'No definido'}.`
-      : 'SIN INFORMACIÓN DE SITUACIÓN.';
+    const memory = store.get('userMemory') || {};
+    const objectives = memory.objectives || {};
+    const activeGoal = objectives.diario || objectives.semanal || objectives.mensual || objectives.anual;
+    
+    if (activeGoal) {
+      const evaluation = this.evaluate(this._confidenceLevel);
+      return `EVALUACIÓN DE REALIDAD (Reality Engine): El objetivo activo es "${activeGoal}". Estado: ${evaluation.message}`;
+    }
+    return '';
   }
 }

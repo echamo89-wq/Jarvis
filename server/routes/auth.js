@@ -6,9 +6,9 @@ const { db } = require('../db');
 const { authenticate } = require('../middleware/auth');
 
 const router = express.Router();
-const JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET) {
-  throw new Error('JWT_SECRET no configurado en variables de entorno');
+const JWT_SECRET = process.env.JWT_SECRET || 'jarvis_fallback_secret_key_1500iq';
+if (!process.env.JWT_SECRET) {
+  console.warn('[AUTH] ADVERTENCIA: JWT_SECRET no configurado en variables de entorno. Usando clave de fallback.');
 }
 const JWT_EXPIRES = '7d';
 

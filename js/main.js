@@ -46,57 +46,9 @@ store.on('change:toolCount', (count) => {
 });
 
 function _initWatchdogs() {
-  let _wsSilenceCheck = 0;
-  setInterval(() => {
-    const now = Date.now();
-    // State recovery checks (each 10s)
-    if (store.getState() === STATE.SPEAKING && store.get('activeSources').length === 0) {
-      console.warn('[WATCHDOG] Speaking sin audio — recuperando');
-      store.setState(store.get('micActive') ? STATE.LISTENING : STATE.IDLE);
-    }
-    if (store.get('toolCount') > 0 && store.get('toolStartTime') && (now - store.get('toolStartTime')) > 35000) {
-      console.warn('[WATCHDOG] Tool counter stuck');
-      store.set('toolCount', 0);
-      store.set('toolStartTime', null);
-      store.set('isExecutingTool', false);
-      store.setState(store.get('micActive') ? STATE.LISTENING : STATE.IDLE);
-    }
-    if (store.get('activeSources').length > 0) {
-      const stale = store.get('activeSources').filter(s => {
-        try { return s.playbackState === 'finished'; } catch (e) { return true; }
-      });
-      if (stale.length > 0) {
-        const remaining = store.get('activeSources').filter(s => !stale.includes(s));
-        store.set('activeSources', remaining);
-        if (remaining.length === 0) {
-          store.set('jarvisSpeakingSince', 0);
-          store.setState(store.get('micActive') ? STATE.LISTENING : STATE.IDLE);
-        }
-      }
-    }
-    if (store.get('toolCount') === 0 && store.getState() === STATE.WORKING) {
-      console.warn('[WATCHDOG] WORKING sin tools');
-      store.setState(store.get('micActive') ? STATE.LISTENING : STATE.IDLE);
-    }
-    if (store.get('micActive') && store.getState() === STATE.IDLE && store.get('activeSources').length === 0) {
-      store.setState(STATE.LISTENING);
-    }
-    // WS silence check (each 15s, staggered)
-    _wsSilenceCheck++;
-    if (_wsSilenceCheck % 3 === 1) {
-      const ws = window.ws;
-      if (ws && ws.readyState === 1) {
-        if (!store.get('micActive') || (Date.now() - store.get('lastMicPacketTime')) >= 10000) {
-          if ((Date.now() - store.get('lastWsMessageTime')) > 120000) {
-            console.warn('[WATCHDOG] WS silencioso 120s — reconectando');
-            store.set('isReconnectingIntentional', true);
-            try { ws.close(); } catch (e) {}
-            connectWebSocket();
-          }
-        }
-      }
-    }
-  }, 10000);
+  // Deprecado: Toda la lógica de monitoreo de conexión y salud del micrófono
+  // ahora es gestionada de manera centralizada por js/system/connection-guardian.js
+  // para evitar race conditions y comportamientos erráticos.
   store.set('lastWsMessageTime', Date.now());
 }
 

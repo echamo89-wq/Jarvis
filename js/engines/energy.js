@@ -1,11 +1,23 @@
 export class EnergyEngine {
   constructor() {
-    this._level = 'media';
     this._levels = ['muy_alta', 'alta', 'media', 'baja', 'muy_baja'];
+    this._level = this._detectLevelByTime();
+  }
+
+  _detectLevelByTime() {
+    const hour = new Date().getHours();
+    if (hour >= 6 && hour < 12) return 'alta';
+    if (hour >= 12 && hour < 18) return 'media';
+    if (hour >= 18 && hour < 23) return 'baja';
+    return 'muy_baja';
   }
 
   loadFromMemory(memory) {
-    if (memory?.energy) this._level = memory.energy;
+    if (memory?.energy) {
+      this._level = memory.energy;
+    } else {
+      this._level = this._detectLevelByTime();
+    }
   }
 
   toMemory() { return { energy: this._level }; }

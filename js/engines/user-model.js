@@ -1,5 +1,6 @@
 import { store } from '../state/store.js';
 import { createLogger } from '../utils/logger.js';
+import { bus } from '../utils/event-bus.js';
 const _log = createLogger('USER-MODEL');
 
 export class UserModelEngine {
@@ -12,7 +13,7 @@ export class UserModelEngine {
     if (!userMemory) return;
     this._data = {
       name: userMemory.userName || '',
-      objectives: userMemory.objectives || [],
+      objectives: userMemory.objectives || {},
       skills: userMemory.skills || [],
       englishLevel: userMemory.englishLevel || 'unknown',
       energy: userMemory.energy || 'media',
@@ -53,7 +54,8 @@ export class UserModelEngine {
   getProfileSummary() {
     const parts = [];
     if (this._data?.name) parts.push(`Nombre: ${this._data.name}`);
-    if (this._data?.objectives?.length) parts.push(`Objetivos: ${this._data.objectives.slice(0, 3).join(', ')}`);
+    const objCount = Object.keys(this._data?.objectives || {}).length;
+    if (objCount > 0) parts.push(`Objetivos: ${objCount}`);
     if (this._data?.energy) parts.push(`Energía: ${this._data.energy}`);
     if (this._data?.projects?.length) parts.push(`Proyectos: ${this._data.projects.length}`);
     return parts.join(' | ');
@@ -73,8 +75,10 @@ export class UserModelEngine {
   }
 
   _persist() {
-    const memory = store.get('userMemory');
-    if (memory) Object.assign(memory, this.toMemory());
-    store.set('userMemory', { ...store.get('userMemory') });
+    const memory = store.get('userMemory') || {};
+    Object.assign(memory, this.toMemory());
+    const updated = { ...memory };
+    store.set('userMemory', updated);
+    bus.emit('memory:write-requested', updated);
   }
 }

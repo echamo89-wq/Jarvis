@@ -57,9 +57,14 @@ async function _askCloudFallback(prompt) {
         try {
           const msg = JSON.parse(data.data || data);
           if (msg.setupComplete) return;
-          const text = msg?.setupComplete?.response?.candidates?.[0]?.content?.parts?.[0]?.text
+          
+          const text = msg?.serverContent?.modelTurn?.parts?.[0]?.text
                     || msg?.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (text) { resolve(text); window.removeEventListener('ws-message', handler); }
+          
+          if (text) {
+            resolve(text.trim());
+            window.removeEventListener('ws-message', handler);
+          }
         } catch {}
       };
       window.addEventListener('ws-message', handler);

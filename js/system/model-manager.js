@@ -219,12 +219,12 @@ export function initModelUI() {
 
     // Ejecutar el script Python de escaneo vía PowerShell
     // Ruta absoluta al script Python (__dirname no disponible en ES modules)
-    const scriptPath = 'C:/Users/Admin/Documents/Jarvis/engine/scan_models.py';
+    const scriptPath = 'engine/scan_models.py';
     let resultJson = null;
 
     // Intentar con python, fallback a python3, luego py
     for (const py of ['python', 'python3', 'py']) {
-      const cmd = `& { ${py} "${scriptPath}" } 2>$null`;
+      const cmd = `& { $base = Get-Location; $p = Join-Path $base "${scriptPath}"; if (!(Test-Path $p)) { $p = Join-Path $base "resources\\app\\${scriptPath}" }; if (Test-Path $p) { ${py} "$p" } else { ${py} ".\\${scriptPath}" } } 2>$null`;
       const res = await window.electronAPI.runPowerShell(cmd);
       if (res.success && res.output) {
         try {
