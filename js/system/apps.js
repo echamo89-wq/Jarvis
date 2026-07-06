@@ -1,5 +1,4 @@
 import { executePowerShellCommand, executeWithFallback } from './powershell.js';
-import { runCmd } from './cmd.js';
 
 let appPathCache = {};
 

@@ -72,11 +72,27 @@ async function _initApp() {
   };
 
   _boot('DOMContentLoaded — iniciando sistemas');
+  
+  // Inyección de partículas dinámicas para fondo futurista
+  const pContainer = document.getElementById('main-bg-particles');
+  if (pContainer) {
+    pContainer.innerHTML = '';
+    for (let i = 0; i < 35; i++) {
+      const p = document.createElement('div');
+      p.className = 'particle';
+      p.style.left = `${Math.random() * 100}%`;
+      p.style.animationDuration = `${10 + Math.random() * 15}s`;
+      p.style.animationDelay = `${Math.random() * 10}s`;
+      p.style.width = p.style.height = `${1 + Math.random() * 2}px`;
+      pContainer.appendChild(p);
+    }
+  }
+
   initErrorReporter();
   const _CREATOR_KEY = 'jarvis_creator_mode';
 
   // Pre-warm DNS + TLS para Gemini (conexión TCP temprana)
-  fetch('https://generativelanguage.googleapis.com/v1/models', { mode: 'no-cors' }).catch(() => {});
+
   fetch('config/system_prompt_master.txt').then(r => { if (r.ok) window._cachedMasterPrompt = r.text(); }).catch(() => {});
   fetch('config/integrity_protocol.txt').then(r => { if (r.ok) window._cachedIntegrity = r.text(); }).catch(() => {});
   import('./audio/recorder.js').then(m => m.prewarmAudio()).catch(() => {});

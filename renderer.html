@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+  <div class="bg-particles" id="main-bg-particles"></div>
   <input type="file" id="file-input" accept=".txt,.md,.json,.csv,.log,.js,.py,.html,.css,.xml,.yaml,.yml,.ini,.cfg,.env,.pdf,.docx,.xlsx,.pptx,.ts,.jsx,.tsx,.vue,.sql,.sh,.bat,.ps1,image/*,audio/*" multiple style="display:none">
   <input type="file" id="focus-file-input" accept=".txt,.md,.json,.csv,.log,.js,.py,.html,.css,.xml,.yaml,.yml,.ini,.cfg,.env,.pdf,.docx,.xlsx,.pptx,.ts,.jsx,.tsx,.vue,.sql,.sh,.bat,.ps1,image/*,audio/*" multiple style="display:none">
   <textarea id="text-input" style="display:none"></textarea>
@@ -90,23 +91,66 @@
     <div class="app-body-container">
       <div class="app-main-view">
 
-        <!-- REACTOR: logo animado de JARVIS (focus-reactor original + HUD rings overlay) -->
+        <!-- REACTOR: logo animado de JARVIS (focus-reactor vectorial de alta tecnología) -->
         <div class="reactor-viewport-area">
           <div id="focus-reactor-el" class="focus-reactor idle">
-            <div class="ring focus-ring-1"></div>
-            <div class="ring focus-ring-2"></div>
-            <div class="ring focus-ring-3"></div>
-            <div class="ring focus-ring-4"></div>
-            <div class="focus-speech-ring"></div>
-            <div class="focus-core-aura"></div>
+            
+            <!-- SVG Vectorial Arc Reactor de Jarvis -->
+            <svg viewBox="0 0 200 200" class="hud-reactor-svg">
+              <defs>
+                <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+                  <stop offset="0%" stop-color="var(--primary)" stop-opacity="0.35" />
+                  <stop offset="60%" stop-color="var(--accent-purple)" stop-opacity="0.1" />
+                  <stop offset="100%" stop-color="transparent" stop-opacity="0" />
+                </radialGradient>
+                <radialGradient id="core-glow" cx="50%" cy="50%" r="50%">
+                  <stop offset="0%" stop-color="var(--primary)" stop-opacity="0.8" />
+                  <stop offset="50%" stop-color="var(--primary)" stop-opacity="0.25" />
+                  <stop offset="100%" stop-color="transparent" stop-opacity="0" />
+                </radialGradient>
+                <pattern id="honeycomb-pattern" width="8" height="14" patternUnits="userSpaceOnUse">
+                  <path d="M 4 0 L 8 2.3 L 8 6.9 L 4 9.2 L 0 6.9 L 0 2.3 Z" fill="none" stroke="var(--primary)" stroke-width="0.4" opacity="0.2"/>
+                  <path d="M 0 13.8 L 4 11.5 L 8 13.8" fill="none" stroke="var(--primary)" stroke-width="0.4" opacity="0.2"/>
+                </pattern>
+              </defs>
+              
+              <!-- Aura de luz externa de fondo -->
+              <circle cx="100" cy="100" r="95" fill="url(#glow)" class="reactor-bg-glow" />
+
+              <!-- Anillo exterior segmentado en rotación -->
+              <circle cx="100" cy="100" r="82" stroke="var(--primary)" stroke-width="1.2" stroke-dasharray="12 18 36 18" fill="none" class="svg-ring-outer" />
+              
+              <!-- Ticks de medición concéntricos -->
+              <circle cx="100" cy="100" r="74" stroke="var(--primary)" stroke-width="0.8" stroke-dasharray="2 6" fill="none" opacity="0.4" class="svg-ring-ticks" />
+
+              <!-- Anillo medio grueso con cortes -->
+              <circle cx="100" cy="100" r="64" stroke="var(--accent-purple)" stroke-width="2.2" stroke-dasharray="45 10 45 10" fill="none" opacity="0.7" class="svg-ring-middle" />
+
+              <!-- Marcadores HUD de navegación -->
+              <g class="svg-hud-markers">
+                <polygon points="100,32 97,38 103,38" fill="var(--primary)" />
+                <polygon points="100,168 97,162 103,162" fill="var(--primary)" />
+                <polygon points="32,100 38,97 38,103" fill="var(--primary)" />
+                <polygon points="168,100 162,97 162,103" fill="var(--primary)" />
+              </g>
+
+              <!-- Anillo interno dashed -->
+              <circle cx="100" cy="100" r="52" stroke="var(--primary)" stroke-width="0.8" stroke-dasharray="6 24" fill="none" opacity="0.5" class="svg-ring-inner" />
+
+              <!-- Núcleo de energía central -->
+              <circle cx="100" cy="100" r="42" fill="url(#core-glow)" class="svg-core-pulse" />
+              
+              <!-- Tapa física del núcleo con cristal hexagonal -->
+              <circle cx="100" cy="100" r="36" fill="#090d1a" stroke="var(--primary)" stroke-width="1.2" />
+              <circle cx="100" cy="100" r="36" fill="url(#honeycomb-pattern)" />
+            </svg>
+
+            <!-- Texto central interactivo -->
             <div class="focus-core">
-              <div class="honeycomb-bg"></div>
               <span class="core-text">JARVIS</span>
             </div>
+
           </div>
-          <!-- HUD overlay rings (nuevos, decorativos) -->
-          <div class="hud-circle-outer"></div>
-          <div class="hud-circle-inner"></div>
         </div>
 
         <!-- PROGRESS: indicador de herramientas en ejecucion -->
@@ -155,9 +199,11 @@
         <!-- MENSAJE: burbuja premium de conversación -->
         <div id="message-area" class="message-area">
           <div class="msg-glow"></div>
-          <span id="msg-label" class="msg-label">▶ SISTEMAS ONLINE</span>
-          <p id="msg-text" class="msg-text"></p>
-          <div class="msg-indicator" id="msg-indicator"></div>
+          <div class="msg-inner">
+            <span id="msg-label" class="msg-label">▶ SISTEMAS ONLINE</span>
+            <p id="msg-text" class="msg-text"></p>
+            <div class="msg-indicator" id="msg-indicator"></div>
+          </div>
         </div>
 
         <!-- BARRA DE CHAT -->

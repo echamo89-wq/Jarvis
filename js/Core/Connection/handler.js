@@ -169,6 +169,14 @@ function _handleServerContent(content) {
     const newText = sep + chunk;
     store.set('_jarvisSpeechText', prev + newText);
     _pendingTranscript = prev + newText;
+    
+    // Instant streaming optimization — draw transcription tokens in real-time
+    const cleanedChunk = _cleanModelText(chunk);
+    if (cleanedChunk) {
+      hideChatStatus();
+      handleJarvisTextChunk(cleanedChunk);
+      store.set('_turnTextShown', true);
+    }
   }
   if (content.modelTurn?.parts) {
     store.set('lastSpeechDetectedTime', 0);
@@ -179,9 +187,10 @@ function _handleServerContent(content) {
     if (userText && userText !== store.get('_lastInputTranscript')) {
       store.set('_lastInputTranscript', userText);
       const wasVoice = !!(store.get('_inputAccum') || '').trim();
-      removeInterimUserMessage();
       if (wasVoice) {
         appendUserMessage(userText);
+      } else {
+        removeInterimUserMessage();
       }
       const history = store.get('conversationHistory');
       if (history.length > 200) history.splice(0, history.length - 200);
@@ -207,7 +216,7 @@ function _handleServerContent(content) {
           const tb = _q('thinking-body');
           const currentText = tb ? (tb.innerText || '') : '';
           updateThinkingPanel(currentText + '\n' + text);
-        } else if (cleaned) {
+        } else if (cleaned && !store.get('_turnTextShown')) {
           hideChatStatus();
           _log('info', `[TEXT] ${cleaned.substring(0, 80)}`);
           handleJarvisTextChunk(cleaned);

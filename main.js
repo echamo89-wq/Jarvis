@@ -306,6 +306,9 @@ ipcMain.on('splash-finished', () => {
   if (_mainWindow && !_mainWindow.isDestroyed()) {
     _mainWindow.show();
     _mainWindow.focus();
+    // Forzamos abrir las DevTools en ventana separada (detach) 
+    // para capturar el error exacto de consola que congela la UI principal.
+    _mainWindow.webContents.openDevTools({ mode: 'detach' });
   }
 });
 
@@ -1048,6 +1051,12 @@ ipcMain.handle('ws-connect', async (event) => {
 
     geminiWs.on('open', () => {
       console.log('[MAIN] Gemini WS connected');
+      // Disable Nagle's algorithm to prioritize real-time packet delivery (lowers bidi audio/text latency)
+      if (geminiWs._socket) {
+        try { geminiWs._socket.setNoDelay(true); } catch (e) {
+          console.warn('[MAIN] No se pudo establecer setNoDelay en socket:', e.message);
+        }
+      }
       if (win && !win.isDestroyed()) {
         win.webContents.send('ws-status', { type: 'open', event: { type: 'open' } });
       }

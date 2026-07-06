@@ -81,7 +81,13 @@ app.use('/api/proxy', proxyRoutes);
 app.use('/api/feedback', feedbackRoutes);
 
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', version: '1.0.0', timestamp: Date.now() });
+  res.json({
+    status: 'ok',
+    version: '1.2.0',
+    timestamp: Date.now(),
+    uptime: Math.floor(process.uptime()),
+    database: 'connected'
+  });
 });
 
 app.use((err, req, res, next) => {

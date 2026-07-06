@@ -100,7 +100,7 @@ function _startTypewriter() {
   _typewriterTimer = true;
 
   function _charInterval() {
-    return 12 + Math.random() * 8;
+    return 10 + Math.random() * 6;
   }
 
   let nextCharTime = 0;
@@ -126,7 +126,7 @@ function _startTypewriter() {
       if (_indicator) _indicator.classList.remove('typing');
     }
   }
-  nextCharTime = performance.now() + 40;
+  nextCharTime = performance.now() + 20;
   requestAnimationFrame(_tick);
 }
 
@@ -362,6 +362,7 @@ export function appendJarvisMessage(text) {
   });
   _log('info', text.substring(0, 100));
 }
+
 export function _closeActiveJarvisBubble() {
   _stopTypewriter();
   const els = _getEls();
@@ -412,7 +413,6 @@ export function _closeActiveJarvisBubble() {
   store.set('_turnState', 'thinking');
   updateThinkingPanel('');
 }
-
 
 export function hideChatStatus() {}
 export function showChatStatus(phase, detail) {
