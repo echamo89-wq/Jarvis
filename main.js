@@ -43,6 +43,15 @@ function _trackChildProcess(proc) {
 }
 
 function _startBackendServer() {
+  // En producción (app empaquetada), el servidor backend no se usa.
+  // La app se conecta directamente a la API de Gemini vía WebSocket.
+  // Intentar spawnearlo con process.execPath (Jarvis.exe) causa ENOENT
+  // porque un ejecutable de Electron no puede actuar como intérprete Node.
+  if (app.isPackaged) {
+    console.log('[MAIN] Producción: servidor backend omitido (app usa Gemini WS directo).');
+    return null;
+  }
+
   if (_backendServerProc && _backendServerProc.exitCode === null) {
     return _backendServerProc;
   }
@@ -56,16 +65,11 @@ function _startBackendServer() {
   }
 
   try {
-    // Si la app está empaquetada (production), usamos el propio binario de Electron (execPath)
-    // para correr el script del servidor, evitando requerir node.exe global en el sistema del usuario.
-    const isPackaged = app.isPackaged;
-    const nodeCmd = isPackaged ? process.execPath : (process.platform === 'win32' ? 'node.exe' : 'node');
-    
-    _backendServerProc = spawn(nodeCmd, [entrypoint], {
+    _backendServerProc = spawn('node', [entrypoint], {
       cwd: serverPath,
       windowsHide: true,
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: { ...process.env, PORT: process.env.PORT || '3001', NODE_ENV: isPackaged ? 'production' : 'development' }
+      env: { ...process.env, PORT: process.env.PORT || '3001', NODE_ENV: 'development' }
     });
 
     _trackChildProcess(_backendServerProc);
@@ -83,7 +87,7 @@ function _startBackendServer() {
       _backendServerProc = null;
     });
 
-    console.log('[MAIN] Arrancando servidor interno de JARVIS...');
+    console.log('[MAIN] Arrancando servidor interno de JARVIS (desarrollo)...');
     return _backendServerProc;
   } catch (err) {
     console.error('[MAIN] Error al iniciar servidor interno:', err.message);
