@@ -101,4 +101,8 @@ function registerSecureStorageIpc() {
   });
 }
 
-module.exports = { registerSecureStorageIpc };
+module.exports = {
+  registerSecureStorageIpc,
+  loadCredentials: _loadCredentials,
+  saveCredentials: _saveCredentials
+};

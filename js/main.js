@@ -161,10 +161,14 @@ async function _initApp() {
     return false;
   }
 
-  const backendReady = await _waitBackendReady(15000);
-  if (!backendReady) {
-    _boot('Backend no disponible, la autenticación puede tardar');
-  }
+  // El backend se verifica en segundo plano de manera asíncrona para no retrasar el inicio de la app (arranque instantáneo en < 1s)
+  _waitBackendReady(15000).then(ready => {
+    if (!ready) {
+      _boot('Backend no disponible, la autenticación puede tardar en guardarse');
+    } else {
+      _boot('Backend listo');
+    }
+  });
 
   let _appStarted = false;
   const _startApp = async () => {

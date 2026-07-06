@@ -100,6 +100,16 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   if (keyInput) {
+    // Si la clave ya existe en el almacenamiento seguro de Windows, la rellenamos automáticamente
+    if (window.electronAPI?.secureCredentialGet) {
+      window.electronAPI.secureCredentialGet('GEMINI_API_KEY').then(savedKey => {
+        if (savedKey && savedKey.trim().length >= 10) {
+          keyInput.value = savedKey.trim();
+          if (saveBtn) saveBtn.disabled = false;
+        }
+      }).catch(() => {});
+    }
+
     keyInput.addEventListener('input', () => {
       const valid = keyInput.value.trim().length >= 10;
       if (saveBtn) saveBtn.disabled = !valid;

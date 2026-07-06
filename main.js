@@ -7,6 +7,9 @@ const http = require('http');
 const https = require('https');
 const crypto = require('crypto');
 
+const { registerSecureStorageIpc, loadCredentials, saveCredentials } = require('./main/secure-storage');
+const { registerPsIpc } = require('./main/ps-executor');
+
 try {
   const env = fs.readFileSync('.env', 'utf8');
   env.split('\n').forEach(line => {
@@ -15,8 +18,15 @@ try {
   });
 } catch(e) {}
 
-const { registerSecureStorageIpc } = require('./main/secure-storage');
-const { registerPsIpc } = require('./main/ps-executor');
+// Precargar API Key desde almacenamiento seguro si no existe en .env
+try {
+  const creds = loadCredentials();
+  if (creds && creds.GEMINI_API_KEY) {
+    process.env.GEMINI_API_KEY = creds.GEMINI_API_KEY;
+  }
+} catch (e) {
+  console.error('[MAIN] Error al cargar API Key persistente desde secure storage:', e.message);
+}
 
 let geminiWs = null;
 let _childProcesses = [];  // track ad-hoc spawned processes for cleanup
@@ -46,12 +56,16 @@ function _startBackendServer() {
   }
 
   try {
-    const nodeCmd = process.platform === 'win32' ? 'node.exe' : 'node';
+    // Si la app está empaquetada (production), usamos el propio binario de Electron (execPath)
+    // para correr el script del servidor, evitando requerir node.exe global en el sistema del usuario.
+    const isPackaged = app.isPackaged;
+    const nodeCmd = isPackaged ? process.execPath : (process.platform === 'win32' ? 'node.exe' : 'node');
+    
     _backendServerProc = spawn(nodeCmd, [entrypoint], {
       cwd: serverPath,
       windowsHide: true,
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: { ...process.env, PORT: process.env.PORT || '3001', NODE_ENV: process.env.NODE_ENV || 'development' }
+      env: { ...process.env, PORT: process.env.PORT || '3001', NODE_ENV: isPackaged ? 'production' : 'development' }
     });
 
     _trackChildProcess(_backendServerProc);
@@ -834,7 +848,17 @@ ipcMain.handle('setup-gemini-key', async (event, key) => {
     return { success: false, error: 'Key inválida' };
   }
   process.env.GEMINI_API_KEY = key.trim();
-  // También persiste en .env para futuras sesiones
+  
+  // Persistir en almacenamiento seguro de forma encriptada
+  try {
+    const creds = loadCredentials();
+    creds.GEMINI_API_KEY = key.trim();
+    saveCredentials(creds);
+  } catch (e) {
+    console.error(`[MAIN] No se pudo guardar la key en almacenamiento seguro: ${e.message}`);
+  }
+
+  // También persiste en .env para compatibilidad / desarrollo local
   try {
     const envPath = require('path').join(__dirname, '.env');
     require('fs').writeFileSync(envPath, `GEMINI_API_KEY=${key.trim()}\n`);
@@ -856,6 +880,14 @@ ipcMain.handle('clear-storage', async (event) => {
     `);
     // También limpiar la API key del proceso
     delete process.env.GEMINI_API_KEY;
+
+    // Limpiar de almacenamiento seguro
+    try {
+      const creds = loadCredentials();
+      delete creds.GEMINI_API_KEY;
+      saveCredentials(creds);
+    } catch (e) {}
+
     try {
       const envPath = require('path').join(__dirname, '.env');
       require('fs').writeFileSync(envPath, 'GEMINI_API_KEY=\n');
