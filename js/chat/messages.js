@@ -14,40 +14,69 @@ let _currentRole = null;
 import { createLogger } from '../utils/logger.js';
 const _log = createLogger('CHAT');
 
+// ─── DOM helpers ─────────────────────────────────────────
 function _getEls() {
   return {
-    msgArea: document.getElementById('message-area'),
-    msgText: document.getElementById('msg-text'),
-    msgLabel: document.getElementById('msg-label'),
-    progArea: document.getElementById('progress-area'),
-    progSteps: document.getElementById('progress-steps'),
-    progPct: document.getElementById('progress-pct'),
-    progPctText: document.getElementById('prog-pct-text'),
-    progPctFill: document.getElementById('prog-pct-fill'),
+    msgArea:    document.getElementById('message-area'),
+    userPart:   document.getElementById('msg-user-part'),
+    userText:   document.getElementById('msg-user-text'),
+    jarvisPart: document.getElementById('msg-jarvis-part'),
+    jarvisText: document.getElementById('msg-jarvis-text'),
+    progArea:   document.getElementById('progress-area'),
+    progSteps:  document.getElementById('progress-steps'),
+    progPct:    document.getElementById('progress-pct'),
+    progPctText:document.getElementById('prog-pct-text'),
+    progPctFill:document.getElementById('prog-pct-fill'),
   };
 }
 
-function _setMsg(label, text, role) {
+// ─── Bubble visibility control ────────────────────────────
+function _updateBubbleVisibility() {
   const els = _getEls();
-  if (els.msgLabel) { els.msgLabel.textContent = label; els.msgLabel.className = 'msg-label ' + role; }
-  if (els.msgText) { els.msgText.textContent = text; els.msgText.className = 'msg-text ' + role; }
-  if (els.msgArea) {
-    els.msgArea.className = 'message-area ' + role;
+  if (!els.msgArea) return;
+  const hasUser   = els.userPart   && els.userPart.style.display   === 'block';
+  const hasJarvis = els.jarvisPart && els.jarvisPart.style.display === 'block';
+  const indActive = document.getElementById('msg-indicator')?.classList.contains('active');
+
+  if (hasUser || hasJarvis || indActive) {
     els.msgArea.classList.add('visible');
-    requestAnimationFrame(() => {
-      els.msgArea.style.transform = '';
-      els.msgArea.style.opacity = '';
-      els.msgArea.classList.add('revealed');
-    });
+    const rv = document.querySelector('.reactor-viewport-area');
+    if (rv) rv.classList.add('has-message');
+  } else {
+    els.msgArea.classList.remove('visible', 'revealed');
+    const rv = document.querySelector('.reactor-viewport-area');
+    if (rv) rv.classList.remove('has-message');
   }
-  const rv = document.querySelector('.reactor-viewport-area');
-  if (rv) rv.classList.add('has-message');
-  _currentRole = role;
-  import('../weather/forecast-panel.js').then(m => m.hideWeatherForecast()).catch(() => {});
-  import('../ui/info-panel.js').then(m => m.hideInfoPanel()).catch(() => {});
-  _updateIndicator(role);
 }
 
+// ─── Low-level text setters ───────────────────────────────
+function _setUserText(text) {
+  const els = _getEls();
+  if (!els.userPart || !els.userText) return;
+  els.userText.textContent = text;
+  els.userPart.style.display = text ? 'block' : 'none';
+  _updateBubbleVisibility();
+}
+
+function _setJarvisText(text) {
+  const els = _getEls();
+  if (!els.jarvisPart || !els.jarvisText) return;
+  els.jarvisText.textContent = text;
+  els.jarvisPart.style.display = text ? 'block' : 'none';
+  _updateBubbleVisibility();
+}
+
+// Show Jarvis label/section immediately (no text yet) so the bubble
+// appears before the first character arrives.
+function _showJarvisPanel() {
+  const els = _getEls();
+  if (!els.jarvisPart || !els.jarvisText) return;
+  els.jarvisText.textContent = '';
+  els.jarvisPart.style.display = 'block';
+  _updateBubbleVisibility();
+}
+
+// ─── Activity indicator ───────────────────────────────────
 function _updateIndicator(role) {
   const ind = document.getElementById('msg-indicator');
   if (!ind) return;
@@ -64,25 +93,27 @@ function _updateIndicator(role) {
   } else {
     ind.className = 'msg-indicator';
   }
+  _updateBubbleVisibility();
 }
 
 function _clearMsg() {
-  const els = _getEls();
-  if (els.msgText) { els.msgText.textContent = ''; els.msgText.className = 'msg-text'; }
-  if (els.msgLabel) { els.msgLabel.textContent = ''; els.msgLabel.className = 'msg-label'; }
-  if (els.msgArea) els.msgArea.classList.remove('visible');
-  const rv = document.querySelector('.reactor-viewport-area');
-  if (rv) rv.classList.remove('has-message');
-  _currentRole = null;
+  _setUserText('');
+  _setJarvisText('');
+  _updateIndicator('none');
 }
 
 function _fadeOutMsg(cb) {
   const el = document.getElementById('message-area');
   if (!el) { if (cb) cb(); return; }
-  el.classList.remove('visible');
-  el.style.transform = 'translateY(-3px) scale(0.98)';
-  el.style.opacity = '0';
-  setTimeout(() => { if (cb) cb(); }, 120);
+  el.style.transition = 'opacity 0.35s ease, transform 0.35s cubic-bezier(0.16,1,0.3,1)';
+  el.style.transform  = 'translateY(-4px) scale(0.98)';
+  el.style.opacity    = '0';
+  setTimeout(() => {
+    el.classList.remove('visible', 'revealed');
+    el.style.transform  = '';
+    el.style.opacity    = '';
+    if (cb) cb();
+  }, 370);
 }
 
 export function _hideProgress() {
@@ -91,91 +122,123 @@ export function _hideProgress() {
   import('../ui/task-bubble.js').then(m => m.hideTaskBubble());
 }
 
-// ─── Typewriter rápido ─────────────────────────────────
+// ─── Typewriter — smooth, never blocks ───────────────────
 function _startTypewriter() {
   if (_typewriterTimer) return;
   const els = _getEls();
-  if (els.msgText) els.msgText.classList.add('typing');
-  const _indicator = document.getElementById('msg-indicator');
+  if (els.jarvisText) els.jarvisText.classList.add('typing');
   _typewriterTimer = true;
 
-  function _charInterval() {
-    return 10 + Math.random() * 6;
-  }
+  const BASE_INTERVAL = 12; // ms/char baseline
 
-  let nextCharTime = 0;
+  let nextTime = performance.now() + BASE_INTERVAL;
+
   function _tick(now) {
     if (!_typewriterTimer) return;
-    const e = _getEls().msgText;
-    if (!e) return;
+    const e = _getEls().jarvisText;
+    if (!e) { _typewriterTimer = null; return; }
+
     if (_typewriterIndex < _typewriterTarget.length) {
-      if (now >= nextCharTime) {
-        const charsToAdd = Math.min(
-          Math.floor((now - nextCharTime) / _charInterval()) + 1,
-          _typewriterTarget.length - _typewriterIndex
-        );
-        _typewriterIndex += charsToAdd;
-        e.textContent = _typewriterTarget.substring(0, _typewriterIndex);
-        nextCharTime = now + _charInterval();
-        if (_indicator) _indicator.classList.add('typing');
+      // Catch up if chunks arrived faster than we rendered
+      const elapsed = now - nextTime;
+      const catchUp = Math.max(0, Math.floor(elapsed / BASE_INTERVAL));
+      const add = 1 + catchUp;
+      _typewriterIndex = Math.min(_typewriterIndex + add, _typewriterTarget.length);
+      e.textContent = _typewriterTarget.substring(0, _typewriterIndex);
+
+      // Ensure the panel is visible
+      const part = _getEls().jarvisPart;
+      if (part && part.style.display !== 'block') {
+        part.style.display = 'block';
+        _updateBubbleVisibility();
       }
+
+      nextTime = now + BASE_INTERVAL;
       requestAnimationFrame(_tick);
     } else {
       e.classList.remove('typing');
       _typewriterTimer = null;
-      if (_indicator) _indicator.classList.remove('typing');
     }
   }
-  nextCharTime = performance.now() + 20;
   requestAnimationFrame(_tick);
 }
 
 function _stopTypewriter() {
-  if (_typewriterTimer) {
-    _typewriterTimer = null;
-  }
+  _typewriterTimer = null;
   const els = _getEls();
-  if (els.msgText) els.msgText.classList.remove('typing');
+  if (els.jarvisText) els.jarvisText.classList.remove('typing');
 }
 
-// ─── 1. User message ─────────────────────────────────────
+// ─── 1. USER — interim (real-time voice transcription) ───
+export function updateInterimUserMessage(text) {
+  if (!text || !text.trim()) return;
+  _hideProgress();
+  // Only clear Jarvis text on the FIRST interim of a new turn
+  // (when Jarvis part is empty or it's a fresh turn)
+  const els = _getEls();
+  const jarvisHasText = els.jarvisText && els.jarvisText.textContent.trim().length > 0;
+  if (!jarvisHasText) {
+    _setJarvisText('');
+  }
+  _setUserText(text + '…');
+  _updateIndicator('user');
+}
+
+// ─── 2. USER — final confirmed message ───────────────────
 export function appendUserMessage(rawText, correctedText) {
   if (!rawText || !rawText.trim()) return;
   const text = correctedText || rawText;
   _hideProgress();
   _stopTypewriter();
   _typewriterTarget = '';
-  _typewriterIndex = 0;
+  _typewriterIndex  = 0;
 
   _convLog('conv_separator', '');
   _convLog('conv_user', text);
 
-  _fadeOutMsg(() => {
-    _setMsg('▶ TÚ', text, 'user');
-  });
-  _log('info', `[USUARIO] ${text.substring(0, 100)}`);
-}
+  // Clear Jarvis from previous turn; keep user text definitive
+  _setJarvisText('');
+  _setUserText(text);
+  _updateIndicator('none');
 
-export function updateInterimUserMessage(text) {
-  if (!text || !text.trim()) return;
-  _hideProgress();
-  const els = _getEls();
-  if (els.msgText && els.msgArea?.classList.contains('visible') && _currentRole === 'user') {
-    els.msgText.textContent = text + '…';
-  } else {
-    _setMsg('▶ TÚ', text + '…', 'user');
-  }
+  _log('info', `[USUARIO] ${text.substring(0, 100)}`);
 }
 
 export function removeInterimUserMessage() {
   const els = _getEls();
-  if (els.msgText && els.msgLabel && _currentRole === 'user') {
-    els.msgText.textContent = '';
-    els.msgLabel.textContent = '';
+  if (els.userPart && els.userPart.style.display === 'block') {
+    // Only clear the '…' interim if user text is still interim
+    const t = els.userText?.textContent || '';
+    if (t.endsWith('…')) {
+      _setUserText('');
+      _updateIndicator('none');
+    }
   }
 }
 
-// ─── 2. JARVIS streaming response ────────────────────────
+// ─── 3a. JARVIS — INSTANT display (voice output transcription) ────
+// Called with the FULL accumulated transcription text so far.
+// No typewriter — keeps pace with the audio stream.
+export function handleJarvisTranscriptInstant(fullText) {
+  if (!fullText || !fullText.trim()) return;
+  if (_fadeTimer) { clearTimeout(_fadeTimer); _fadeTimer = null; }
+  _hideProgress();
+  _stopTypewriter();           // stop any running typewriter
+  _currentRole = 'jarvis';
+
+  const els = _getEls();
+  if (els.jarvisText) {
+    els.jarvisText.textContent = fullText;
+    els.jarvisText.className   = 'msg-text jarvis-text';
+    els.jarvisText.classList.remove('typing');
+  }
+  if (els.jarvisPart) els.jarvisPart.style.display = 'block';
+  _updateBubbleVisibility();
+
+  store.set('_turnState', 'responding');
+}
+
+// ─── 3b. JARVIS — typewriter (text-only response, no audio) ──
 export function handleJarvisTextChunk(chunk) {
   try {
     const toolCount = store.get('toolCount');
@@ -184,22 +247,24 @@ export function handleJarvisTextChunk(chunk) {
     store.set('_currentTurnTextBuffer', buffer);
     const split = _separateThinkingAndResponse(buffer);
     updateThinkingPanel(split.thinking);
+
     if (split.response && split.response.trim() !== '') {
       if (_fadeTimer) { clearTimeout(_fadeTimer); _fadeTimer = null; }
+      _hideProgress();
+
       if (_currentRole !== 'jarvis') {
-        _hideProgress();
-        _fadeOutMsg(() => {
-          _setMsg('JARVIS', '', 'jarvis');
-          _typewriterTarget = split.response;
-          _typewriterIndex = 0;
-          _startTypewriter();
-        });
+        _currentRole = 'jarvis';
+        // Show panel immediately so label appears before first character
+        _showJarvisPanel();
+        _typewriterTarget = split.response;
+        _typewriterIndex  = 0;
+        _startTypewriter();
       } else {
+        // Update target — typewriter will catch up
         if (split.response.length > _typewriterTarget.length) {
           _typewriterTarget = split.response;
         }
         if (!_typewriterTimer) {
-          _typewriterIndex = 0;
           _startTypewriter();
         }
       }
@@ -210,7 +275,7 @@ export function handleJarvisTextChunk(chunk) {
   }
 }
 
-// ─── 3. Progress modes ───────────────────────────────────
+// ─── 4. Progress helpers ──────────────────────────────────
 export async function showProgressSteps(current, total, description) {
   const m = await import('../ui/task-bubble.js');
   if (current === 1) m.showTaskBubble(total);
@@ -228,24 +293,14 @@ export function showProgressStep(type, description, detail) {
   els.progSteps.style.display = 'flex';
   if (els.progPct) els.progPct.style.display = 'none';
 
-  const icons = { info: '○', warning: '▲', success: '✓', error: '✗' };
-  const icon = icons[type] || '○';
-  const dotClass = type === 'active' ? 'step-dot' : (['warning','success','error'].includes(type) ? `step-dot ${type}` : '');
-
   const step = document.createElement('div');
   step.className = 'prog-step ' + type;
-  step.style.opacity = '0';
-  step.style.transform = 'translateY(4px)';
-  if (dotClass) {
-    const span = document.createElement('span');
-    span.className = dotClass;
-    step.appendChild(span);
-  } else {
-    const span = document.createElement('span');
-    span.className = 'step-icon';
-    span.textContent = icon;
-    step.appendChild(span);
-  }
+  step.style.cssText = 'opacity:0;transform:translateY(4px)';
+  const icons = { info:'○', warning:'▲', success:'✓', error:'✗' };
+  const span = document.createElement('span');
+  span.className = 'step-icon';
+  span.textContent = icons[type] || '○';
+  step.appendChild(span);
   const desc = document.createElement('span');
   desc.className = 'step-desc';
   desc.textContent = description;
@@ -259,9 +314,9 @@ export function showProgressStep(type, description, detail) {
   els.progSteps.textContent = '';
   els.progSteps.appendChild(step);
   requestAnimationFrame(() => {
-    step.style.transition = 'opacity 0.35s ease, transform 0.35s ease';
-    step.style.opacity = '1';
-    step.style.transform = 'translateY(0)';
+    step.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+    step.style.opacity    = '1';
+    step.style.transform  = 'translateY(0)';
   });
 }
 
@@ -278,14 +333,12 @@ export function showProgressPercent(pctValue) {
   if (els.progPctFill) els.progPctFill.style.width = clamped + '%';
 }
 
-export function hideProgress() {
-  _hideProgress();
-}
+export function hideProgress() { _hideProgress(); }
 
-// ─── 4. Greeting ─────────────────────────────────────────
+// ─── 5. Greeting ─────────────────────────────────────────
 function _getUserAddress() {
   const title = localStorage.getItem('jarvis_title') || '';
-  const name = localStorage.getItem('jarvis_username') || '';
+  const name  = localStorage.getItem('jarvis_username') || '';
   if (title && name) return `${title} ${name}`;
   if (name) return name;
   return 'señor';
@@ -293,11 +346,10 @@ function _getUserAddress() {
 
 export function showInstantGreeting() {
   const address = _getUserAddress();
-  const cached = localStorage.getItem('jarvis_cached_greeting') || `Sistemas en línea, ${address}.`;
+  const cached  = localStorage.getItem('jarvis_cached_greeting') || `Sistemas en línea, ${address}.`;
   _hideProgress();
-  _fadeOutMsg(() => {
-    _setMsg('JARVIS', cached, 'jarvis');
-  });
+  _setUserText('');
+  _setJarvisText(cached);
 }
 
 export function sendInitialGreetingRequest() {
@@ -313,16 +365,15 @@ export function sendInitialGreetingRequest() {
   if (ws) ws.send(JSON.stringify(greetMsg));
 }
 
-// ─── 5. Reset ────────────────────────────────────────────
+// ─── 6. Turn reset ───────────────────────────────────────
 export function _resetTurnState() {
   _stopTypewriter();
   _typewriterTarget = '';
-  _typewriterIndex = 0;
-  _currentRole = null;
-  const els = _getEls();
-  if (els.msgText) { els.msgText.textContent = ''; els.msgText.className = 'msg-text'; }
-  if (els.msgLabel) { els.msgLabel.textContent = ''; els.msgLabel.className = 'msg-label'; }
-  if (els.msgArea) els.msgArea.classList.remove('visible');
+  _typewriterIndex  = 0;
+  _currentRole      = null;
+  _setUserText('');
+  _setJarvisText('');
+  _updateIndicator('none');
   _hideProgress();
   if (_fadeTimer) { clearTimeout(_fadeTimer); _fadeTimer = null; }
   store.set('_currentTurnTextBuffer', '');
@@ -331,79 +382,48 @@ export function _resetTurnState() {
   updateThinkingPanel('');
 }
 
-// ─── 6. Error messages ───────────────────────────────────
-export function showSystemErrorMessage(text) {
-  if (!text) return;
-  _hideProgress();
-  _fadeOutMsg(() => {
-    _setMsg('⚠ SISTEMA', text, 'jarvis');
-  });
-  _convLog('conv_response', '⚠ ' + text.substring(0, 200));
-  if (_fadeTimer) clearTimeout(_fadeTimer);
-  const isCritical = /error|fall[óo]|conexi[oó]n/i.test(text);
-  if (!isCritical) {
-    _fadeTimer = setTimeout(() => {
-      _fadeOutMsg(() => {});
-    }, 8000);
-  }
-}
-
-export function appendSystemMessage(text) { showSystemErrorMessage(text); }
-
-// ─── Stubs ───────────────────────────────────────────────
-export function appendJarvisMessage(text) {
-  if (!text || !text.trim()) return;
-  _hideProgress();
-  _stopTypewriter();
-  _typewriterTarget = '';
-  _typewriterIndex = 0;
-  _fadeOutMsg(() => {
-    _setMsg('JARVIS', text, 'jarvis');
-  });
-  _log('info', text.substring(0, 100));
-}
-
+// ─── 7. Close active Jarvis bubble (turn complete) ───────
 export function _closeActiveJarvisBubble() {
   _stopTypewriter();
-  const els = _getEls();
+  const els    = _getEls();
   const buffer = store.get('_currentTurnTextBuffer') || '';
-  const split = _separateThinkingAndResponse(buffer);
-  const finalText = split.response || _typewriterTarget || '';
-  if (els.msgText && finalText) {
-    els.msgText.textContent = finalText;
-    els.msgText.className = 'msg-text jarvis';
-    els.msgText.classList.remove('typing');
+  const split  = _separateThinkingAndResponse(buffer);
+  const finalText = split.response || _typewriterTarget || (els.jarvisText?.textContent?.trim() || '');
+
+  if (finalText && els.jarvisText) {
+    els.jarvisText.textContent = finalText;
+    els.jarvisText.className   = 'msg-text jarvis-text';
+    els.jarvisText.classList.remove('typing');
+    if (els.jarvisPart) els.jarvisPart.style.display = 'block';
+    _updateBubbleVisibility();
   }
+
   const history = store.get('conversationHistory');
-  const text = els.msgText?.textContent?.trim();
-  if (text) {
-    history.push({ role: 'model', content: text });
+  const displayText = els.jarvisText?.textContent?.trim();
+  if (displayText) {
+    history.push({ role: 'model', content: displayText });
     store.set('conversationHistory', [...history]);
   }
-
-  if (text && text.length > 3) {
-    _convLog('conv_response', text.substring(0, 500));
+  if (displayText && displayText.length > 3) {
+    _convLog('conv_response', displayText.substring(0, 500));
   }
 
+  // Extract code/document artifacts
   let docCount = 0;
-
   const codeBlocks = extractCodeBlocks(buffer);
   for (const block of codeBlocks) {
     addArtifact(block.code, block.lang, block.title);
     docCount++;
   }
-
   const bodyText = buffer.replace(/```[\s\S]*?```/g, '').trim();
   if (bodyText.length > 300 && bodyText.split(/\s+/).length > 40) {
-    const title = _extractTitle(bodyText);
-    addArtifact(bodyText, 'markdown', title);
+    addArtifact(bodyText, 'markdown', _extractTitle(bodyText));
     docCount++;
   }
-
   if (docCount > 0) {
     const indicator = document.getElementById('msg-code-indicator');
     if (indicator) {
-      indicator.textContent = `📄 ${docCount} documento${docCount > 1 ? 's' : ''} creado${docCount > 1 ? 's' : ''}`;
+      indicator.textContent = `📄 ${docCount} doc${docCount > 1 ? 's' : ''} creado${docCount > 1 ? 's' : ''}`;
       indicator.style.display = 'inline';
       setTimeout(() => { indicator.style.display = 'none'; }, 4000);
     }
@@ -412,6 +432,70 @@ export function _closeActiveJarvisBubble() {
   store.set('_currentTurnTextBuffer', '');
   store.set('_turnState', 'thinking');
   updateThinkingPanel('');
+
+  // Auto-fade after 15s inactivity
+  if (_fadeTimer) clearTimeout(_fadeTimer);
+  _fadeTimer = setTimeout(() => {
+    _fadeOutMsg(() => _clearMsg());
+  }, 15000);
+}
+
+// ─── 8. System error ─────────────────────────────────────
+export function showSystemErrorMessage(text) {
+  if (!text) return;
+  _hideProgress();
+  _setUserText('');
+  _setJarvisText(text);
+  _updateIndicator('none');
+  _convLog('conv_response', '⚠ ' + text.substring(0, 200));
+  if (_fadeTimer) clearTimeout(_fadeTimer);
+  const isCritical = /error|fall[óo]|conexi[oó]n/i.test(text);
+  if (!isCritical) {
+    _fadeTimer = setTimeout(() => _fadeOutMsg(() => _clearMsg()), 8000);
+  }
+}
+
+export function appendSystemMessage(text) { showSystemErrorMessage(text); }
+
+// ─── Stubs / Compat exports ───────────────────────────────
+export function appendJarvisMessage(text) {
+  if (!text || !text.trim()) return;
+  _hideProgress();
+  _stopTypewriter();
+  _typewriterTarget = '';
+  _typewriterIndex  = 0;
+  _setUserText('');
+  _setJarvisText(text);
+  _log('info', text.substring(0, 100));
+}
+
+export function appendCommandResult(title, output) {
+  if (!output) return;
+  _hideProgress();
+  _stopTypewriter();
+  _typewriterTarget = '';
+  _typewriterIndex  = 0;
+  const text = `[${title}]\n${output.substring(0, 1000)}`;
+  _setUserText('');
+  _setJarvisText(text);
+  const els = _getEls();
+  if (els.jarvisPart) {
+    const lbl = els.jarvisPart.querySelector('.msg-label');
+    if (lbl) lbl.textContent = '⚙ SISTEMA';
+  }
+  _convLog('conv_separator', '');
+  _convLog('conv_response', '⚙ ' + title + ': ' + output.substring(0, 200));
+  if (_fadeTimer) clearTimeout(_fadeTimer);
+  _fadeTimer = setTimeout(() => {
+    _fadeOutMsg(() => {
+      _clearMsg();
+      const e2 = _getEls();
+      if (e2.jarvisPart) {
+        const lbl = e2.jarvisPart.querySelector('.msg-label');
+        if (lbl) lbl.textContent = 'JARVIS';
+      }
+    });
+  }, 15000);
 }
 
 export function hideChatStatus() {}
@@ -421,28 +505,16 @@ export function showChatStatus(phase, detail) {
 export function showDoneStatus(count) {
   if (count > 0) showProgressStep('success', 'Completado', `${count} herramienta(s) ejecutada(s)`);
 }
-export function appendCommandResult(title, output) {
-  if (!output) return;
-  _hideProgress();
-  _stopTypewriter();
-  _typewriterTarget = '';
-  _typewriterIndex = 0;
-  const text = `[${title}]\n${output.substring(0, 1000)}`;
-  _fadeOutMsg(() => {
-    _setMsg('⚙ SISTEMA', text, 'system');
-  });
-  _convLog('conv_separator', '');
-  _convLog('conv_response', '⚙ ' + title + ': ' + output.substring(0, 200));
-}
 export function appendVoiceNote() {}
 
+// ─── Text input send ──────────────────────────────────────
 export function sendTextMessage() {
   const textInput = document.getElementById('text-input');
   const text = textInput?.value?.trim();
   if (!text) return;
 
   const correctedText = autoCorrectSpanish(text);
-  const displayText = correctedText || text;
+  const displayText   = correctedText || text;
 
   import('../audio/playback.js').then(async ({ stopAudioPlayback }) => {
     stopAudioPlayback();
@@ -491,10 +563,7 @@ export function sendTextMessage() {
         if (window.ws?.readyState === 1) break;
       }
       ws = window.ws;
-      if (!ws || ws.readyState !== 1) {
-        showSystemErrorMessage('No se pudo reconectar.');
-        return;
-      }
+      if (!ws || ws.readyState !== 1) { showSystemErrorMessage('No se pudo reconectar.'); return; }
     }
 
     ws.send(JSON.stringify({

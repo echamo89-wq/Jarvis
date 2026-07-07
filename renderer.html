@@ -196,12 +196,21 @@
           </div>
         </div>
 
-        <!-- MENSAJE: burbuja premium de conversación -->
+        <!-- MENSAJE: burbuja premium de conversación unificada (HUD de una sola burbuja) -->
         <div id="message-area" class="message-area">
           <div class="msg-glow"></div>
           <div class="msg-inner">
-            <span id="msg-label" class="msg-label">▶ SISTEMAS ONLINE</span>
-            <p id="msg-text" class="msg-text"></p>
+            <!-- Sección del Usuario -->
+            <div id="msg-user-part" class="msg-part user-part" style="display: none;">
+              <span class="msg-label user-label">▶ TÚ</span>
+              <p id="msg-user-text" class="msg-text user-text"></p>
+            </div>
+            <!-- Sección de Jarvis -->
+            <div id="msg-jarvis-part" class="msg-part jarvis-part" style="display: none;">
+              <span class="msg-label jarvis-label">JARVIS</span>
+              <p id="msg-jarvis-text" class="msg-text jarvis-text"></p>
+            </div>
+            <!-- Indicador de actividad -->
             <div class="msg-indicator" id="msg-indicator"></div>
           </div>
         </div>

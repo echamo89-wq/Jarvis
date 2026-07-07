@@ -1,7 +1,7 @@
 import { store } from '../../state/store.js';
 import { STATE } from '../../state/constants.js';
 import { executeToolCall } from '../../tools/executor.js';
-import { handleJarvisTextChunk, appendUserMessage, _closeActiveJarvisBubble, _resetTurnState, showSystemErrorMessage, showChatStatus, hideChatStatus, updateInterimUserMessage, removeInterimUserMessage } from '../../chat/messages.js';
+import { handleJarvisTextChunk, handleJarvisTranscriptInstant, appendUserMessage, _closeActiveJarvisBubble, _resetTurnState, showSystemErrorMessage, showChatStatus, hideChatStatus, updateInterimUserMessage, removeInterimUserMessage } from '../../chat/messages.js';
 import { updateThinkingPanel } from '../../chat/text-processor.js';
 // showTour is disabled because onboarding/index.js does not exist
 const showTour = () => console.log('[TOUR] showTour called (not implemented)');
@@ -167,14 +167,15 @@ function _handleServerContent(content) {
     const prev = store.get('_jarvisSpeechText') || '';
     const sep = prev && !chunk.startsWith(' ') && !prev.endsWith(' ') ? ' ' : '';
     const newText = sep + chunk;
-    store.set('_jarvisSpeechText', prev + newText);
-    _pendingTranscript = prev + newText;
-    
-    // Instant streaming optimization — draw transcription tokens in real-time
-    const cleanedChunk = _cleanModelText(chunk);
-    if (cleanedChunk) {
+    const fullAccum = prev + newText;
+    store.set('_jarvisSpeechText', fullAccum);
+    _pendingTranscript = fullAccum;
+
+    // Instant display — no typewriter so text tracks audio in real-time
+    const cleanedFull = _cleanModelText(fullAccum);
+    if (cleanedFull) {
       hideChatStatus();
-      handleJarvisTextChunk(cleanedChunk);
+      handleJarvisTranscriptInstant(cleanedFull);
       store.set('_turnTextShown', true);
     }
   }

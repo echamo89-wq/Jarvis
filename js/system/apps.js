@@ -167,20 +167,81 @@ function _fuzzyCacheLookup(name) {
     if (kN === norm || kN.includes(norm) || norm.includes(kN)) return appPathCache[k];
   }
   return null;
-}
+const PLATFORM_APPS = {
+  darwin: {
+    chrome: ['Google Chrome', 'Brave Browser', 'Safari'],
+    terminal: ['Terminal', 'iTerm'],
+    spotify: ['Spotify'],
+    code: ['Visual Studio Code'],
+    calculator: ['Calculator'],
+    notepad: ['TextEdit'],
+    explorer: ['Finder'],
+    settings: ['System Settings']
+  },
+  linux: {
+    chrome: ['google-chrome', 'firefox', 'chromium-browser'],
+    terminal: ['gnome-terminal', 'xterm', 'konsole', 'xfce4-terminal'],
+    spotify: ['spotify'],
+    code: ['code'],
+    calculator: ['gnome-calculator', 'kcalc'],
+    notepad: ['gedit', 'nano', 'kate'],
+    explorer: ['nautilus', 'dolphin', 'thunar']
+  }
+};
 
 export async function launchApp(appName) {
   const name = appName.toLowerCase().trim();
   const entryKey = _matchEntry(name);
   const entry = entryKey ? KNOWN_APPS[entryKey] : null;
 
+  // 1. Web application redirect fallback
   if (entry && !entry.exe && entry.url) {
     _log('info', `Web app: ${entry.url}`);
     const r = await window.electronAPI.openBrowser(entry.url);
     return { success: r.success, output: r.success ? `${appName} abierto en el navegador.` : `Error: ${r.output}` };
   }
 
-  const searchExe = (entry && entry.exe) ? entry.exe : `${name}.exe`;
+  // 2. Non-Windows (macOS & Linux) Native Launcher Support
+  const platform = process.platform;
+  if (platform !== 'win32') {
+    _log('info', `Lanzador nativo UNIX para "${name}" en platform ${platform}`);
+    const mapping = PLATFORM_APPS[platform] || {};
+    const candidates = mapping[entryKey] || [name];
+    
+    if (platform === 'darwin') { // macOS
+      for (const app of candidates) {
+        const r = await window.electronAPI.runCmd(`open -a "${app}"`);
+        if (r.success) return { success: true, output: `${appName} abierto.` };
+      }
+      // Generico
+      const r = await window.electronAPI.runCmd(`open -a "${name}"`);
+      if (r.success) return { success: true, output: `${appName} abierto.` };
+    } else { // Linux
+      for (const app of candidates) {
+        const r = await window.electronAPI.runCmd(`${app} &`);
+        if (r.success) return { success: true, output: `${appName} abierto.` };
+      }
+    }
+    
+    if (entry && entry.url) {
+      _log('info', `Fallback a web (UNIX): ${entry.url}`);
+      const r = await window.electronAPI.openBrowser(entry.url);
+      return { success: r.success, output: r.success ? `${appName} abierto en el navegador.` : `Error: ${r.output}` };
+    }
+    return { success: false, output: `No se pudo abrir "${appName}" en tu sistema UNIX.` };
+  }
+
+  // 3. Windows Native Cascaded Launcher (with robust fallbacks)
+  const targets = [];
+  if (entryKey === 'chrome') {
+    targets.push('chrome.exe', 'msedge.exe', 'firefox.exe');
+  } else if (entryKey === 'terminal') {
+    targets.push('WindowsTerminal.exe', 'wt.exe', 'powershell.exe', 'cmd.exe');
+  } else {
+    if (entry && entry.exe) targets.push(entry.exe);
+    targets.push(`${name}.exe`, name);
+  }
+  const primaryExe = targets[0];
 
   // Check cache with fuzzy matching
   const cacheKey = entryKey || name;
@@ -197,62 +258,92 @@ export async function launchApp(appName) {
     delete appPathCache[cacheKey];
   }
 
-  _log('info', `Buscando ruta de "${name}"...`);
+  _log('info', `Buscando ruta de "${name}" con cascada de objetivos: ${targets.join(', ')}...`);
+  
+  const targetsJson = targets.map(t => `'${t}'`).join(', ');
   const psCommand = `
-    $ErrorActionPreference = 'Stop';
+    $ErrorActionPreference = 'SilentlyContinue';
     $foundPath = "";
-    $targets = @('${searchExe}', '${name}', '${name}.exe');
+    $targets = @(${targetsJson});
+    $names = @('${name}', '${entryKey || name}');
+
+    # 1. Probar Get-Command
     foreach ($t in $targets) {
-      try {
-        $p = Get-Command $t -ErrorAction Stop;
-        $foundPath = $p.Source; break;
-      } catch {}
+      $p = Get-Command $t;
+      if ($p -and $p.Source) { $foundPath = $p.Source; break; }
     }
+
+    # 2. Probar App Paths en registro
     if (-not $foundPath) {
-      $regPaths = @(
-        "HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\${searchExe}",
-        "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\${searchExe}",
-        "HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\${name}.exe",
-        "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\${name}.exe"
-      );
-      foreach ($rp in $regPaths) {
-        if (Test-Path $rp) {
-          $val = (Get-ItemProperty $rp).'(default)';
-          if ($val -and (Test-Path $val)) { $foundPath = $val; break; }
+      foreach ($t in $targets) {
+        $regPaths = @(
+          "HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\$t",
+          "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\$t"
+        );
+        foreach ($rp in $regPaths) {
+          try {
+            if (Test-Path $rp) {
+              $val = (Get-ItemProperty $rp -Name "(default)" -ErrorAction SilentlyContinue)."(default)";
+              if ($val -and (Test-Path $val)) { $foundPath = $val; break; }
+            }
+          } catch {}
         }
+        if ($foundPath) { break; }
       }
     }
+
+    # 3. Probar carpetas comunes
     if (-not $foundPath) {
-      $common = @(
-        "$env:ProgramFiles\\${name}\\${name}.exe",
-        "$env:ProgramFiles(x86)\\${name}\\${name}.exe",
-        "$env:LocalAppData\\Programs\\${name}\\${name}.exe",
-        "$env:ProgramFiles\\${name}\\${searchExe}",
-        "$env:ProgramFiles(x86)\\${name}\\${searchExe}",
-        "$env:LocalAppData\\Programs\\${name}\\${searchExe}"
-      );
-      foreach ($p in $common) {
-        if (Test-Path $p) { $foundPath = $p; break; }
+      foreach ($n in $names) {
+        foreach ($t in $targets) {
+          $common = @(
+            "$env:ProgramFiles\\$n\\$t",
+            "$env:ProgramFiles(x86)\\$n\\$t",
+            "$env:LocalAppData\\Programs\\$n\\$t",
+            "$env:ProgramFiles\\$n\\$n.exe",
+            "$env:ProgramFiles(x86)\\$n\\$n.exe",
+            "$env:LocalAppData\\Programs\\$n\\$n.exe"
+          );
+          foreach ($p in $common) {
+            try {
+              if (Test-Path $p) { $foundPath = $p; break; }
+            } catch {}
+          }
+          if ($foundPath) { break; }
+        }
+        if ($foundPath) { break; }
       }
     }
-    if ($foundPath) { Start-Process -FilePath $foundPath -WindowStyle Normal; Write-Output "OK:$foundPath" }
-    else { Write-Error "No se pudo encontrar '${name}'."; exit 1 }
+
+    # 4. Iniciar proceso
+    if ($foundPath) {
+      try {
+        Start-Process -FilePath $foundPath -WindowStyle Normal;
+        Write-Output "OK:$foundPath";
+      } catch {
+        Write-Error $_.Exception.Message;
+        exit 1;
+      }
+    } else {
+      Write-Output "NOTFOUND";
+      exit 1;
+    }
   `;
+
   const psResult = await window.electronAPI.runPowerShell(psCommand);
-  if (psResult.success) {
+  if (psResult.success && psResult.output && psResult.output.startsWith('OK:')) {
     const match = psResult.output.match(/^OK:(.+)/);
-    if (match) appPathCache[entryKey || name] = match[1].trim();
-    try {
-      const memory = await window.electronAPI.memoryRead();
-      memory.appPathCache = appPathCache;
-      const { default: bus } = await import('../utils/event-bus.js');
-      bus.emit('memory:write-requested', memory);
-    } catch (e) { _log('warn', `save cache: ${e.message}`); }
-    return { success: true, output: `${appName} abierto.` };
+    if (match) {
+      const found = match[1].trim();
+      appPathCache[entryKey || name] = found;
+      await saveAppPathCache();
+      return { success: true, output: `${appName} abierto.` };
+    }
   }
 
+  // Fallback con where.exe
   try {
-    const whereResult = await window.electronAPI.runCmd(`where ${searchExe}`);
+    const whereResult = await window.electronAPI.runCmd(`where ${primaryExe}`);
     if (whereResult.success) {
       const exePath = whereResult.output.trim().split('\n')[0];
       const r = await window.electronAPI.runPowerShell(`
@@ -265,8 +356,9 @@ export async function launchApp(appName) {
         return { success: true, output: `${appName} abierto.` };
       }
     }
-  } catch (e) { _log('warn', `where.exe falló: ${e.message}`); }
+  } catch (e) { _log('warn', `where.exe fallback falló: ${e.message}`); }
 
+  // Fallback PWA / Accesos directos
   _log('info', `Buscando PWA y accesos directos para "${name}"...`);
   const pwaCmd = `
     $ErrorActionPreference = 'SilentlyContinue';
@@ -287,8 +379,9 @@ export async function launchApp(appName) {
     }
   }
 
+  // Fallback final a web
   if (entry && entry.url) {
-    _log('info', `Fallback a web: ${entry.url}`);
+    _log('info', `Fallback final a web: ${entry.url}`);
     const r = await window.electronAPI.openBrowser(entry.url);
     return { success: r.success, output: r.success ? `${appName} abierto en el navegador.` : `Error: ${r.output}` };
   }

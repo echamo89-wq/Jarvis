@@ -92,6 +92,14 @@ async function _runPsPersistent(command) {
 
 function registerPsIpc(cleanupCallback) {
   ipcMain.handle('run-powershell', async (event, command) => {
+    const isWin = process.platform === 'win32';
+    if (!isWin) {
+      return new Promise((resolve) => {
+        execFile('/bin/sh', ['-c', command], { timeout: 30000, maxBuffer: 2 * 1024 * 1024 }, (error, stdout, stderr) => {
+          resolve(error ? { success: false, output: stderr.trim() || error.message } : { success: true, output: stdout.trim() });
+        });
+      });
+    }
     const normalized = _normalizeCommand(command, true);
     const isBlocked = PS_BLOCKED_PATTERNS.some(p => p.test(normalized));
     if (isBlocked) {
@@ -118,6 +126,14 @@ function registerPsIpc(cleanupCallback) {
   });
 
   ipcMain.handle('run-cmd', async (event, command) => {
+    const isWin = process.platform === 'win32';
+    if (!isWin) {
+      return new Promise((resolve) => {
+        execFile('/bin/sh', ['-c', command], { timeout: 6000 }, (error, stdout, stderr) => {
+          resolve(error ? { success: false, output: stderr.trim() || error.message } : { success: true, output: stdout.trim() });
+        });
+      });
+    }
     const normalized = _normalizeCommand(command, false);
     const isBlocked = CMD_BLOCKED_PATTERNS.some(p => p.test(normalized));
     if (isBlocked) {

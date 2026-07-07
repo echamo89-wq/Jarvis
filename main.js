@@ -134,7 +134,7 @@ function createSplashWindow() {
 
   _splashWindow = new BrowserWindow({
     width: 380,
-    height: 460,
+    height: 520,
     frame: false,
     transparent: false,
     resizable: false,
@@ -219,9 +219,15 @@ function createMainWindow() {
 
   _mainWindow.loadFile('renderer.html');
 
-  if (process.env.NODE_ENV === 'development' || process.env.DEV_TOOLS === 'true') {
-    _mainWindow.webContents.openDevTools({ mode: 'detach' });
-  }
+  // Habilitar DevTools con F12 o Ctrl+Shift+I solo si no está empaquetado (modo desarrollo)
+  _mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (!app.isPackaged) {
+      if ((input.control && input.shift && input.key.toLowerCase() === 'i') || input.key === 'F12') {
+        _mainWindow.webContents.toggleDevTools();
+        event.preventDefault();
+      }
+    }
+  });
 
   if (process.argv.includes('--reset')) {
     try {
@@ -306,9 +312,6 @@ ipcMain.on('splash-finished', () => {
   if (_mainWindow && !_mainWindow.isDestroyed()) {
     _mainWindow.show();
     _mainWindow.focus();
-    // Forzamos abrir las DevTools en ventana separada (detach) 
-    // para capturar el error exacto de consola que congela la UI principal.
-    _mainWindow.webContents.openDevTools({ mode: 'detach' });
   }
 });
 

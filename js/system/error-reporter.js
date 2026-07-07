@@ -75,6 +75,9 @@ export function initErrorReporter() {
   window.addEventListener('error', (e) => {
     const msg = `${e.message} (${e.filename}:${e.lineno}:${e.colno})`;
     console.error('[ERROR-REPORTER]', msg);
+    if (window.electronAPI?.logToTerminal) {
+      window.electronAPI.logToTerminal('error', `[FRONTEND] ${msg}`);
+    }
     if (e.error?.critical || e.message?.includes('Fallo en') || e.message?.includes('[LOG_SYSTEM_CRITICAL]')) {
       showErrorToast(msg);
     }
@@ -83,6 +86,9 @@ export function initErrorReporter() {
   window.addEventListener('unhandledrejection', (e) => {
     const msg = e.reason?.message || e.reason || 'Unhandled promise rejection';
     console.error('[ERROR-REPORTER]', msg);
+    if (window.electronAPI?.logToTerminal) {
+      window.electronAPI.logToTerminal('error', `[FRONTEND UNHANDLED] ${msg}`);
+    }
     if (msg.includes('Fallo en') || msg.includes('[LOG_SYSTEM_CRITICAL]')) {
       showErrorToast(msg);
     }

@@ -32,6 +32,7 @@ Thumbs.db
 *.log
 *.tmp
 run_output.txt
+ui_logs.txt
 
 # ─── SSL certificates ────────────────────────────────────────────────────────
 server/ssl/
