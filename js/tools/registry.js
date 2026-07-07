@@ -4,139 +4,254 @@ export function getFunctionDeclarations() {
   return [
     {
       name: 'launch_app',
-      description: 'Opens any Windows application or website. Use for: Chrome/navegador, Firefox, Edge, Spotify/música, VS Code, Discord, Steam, WhatsApp, Telegram, Calculator/calculadora, Notepad/bloc de notas, Paint, Terminal/consola, File Explorer/archivos, Settings/configuración, Word, Excel, PowerPoint, Task Manager/admin de tareas, YouTube, Gmail/correo, Maps/mapas, Netflix, Instagram, Twitter/X. ALWAYS try this tool first. Use Spanish app names too (e.g. "navegador" for Chrome, "música" for Spotify).',
-      parameters: { type: 'object', properties: { appName: { type: 'string', description: 'App name in Spanish or English (e.g. "chrome", "navegador", "spotify", "música", "calculadora", "youtube", "correo", "archivos", "explorador", "consola", "discord", "word", "excel", "notas")' } }, required: ['appName'] }
+      description: `Opens any desktop application, program, or website. PRIORITY TOOL — always try this FIRST for any app-opening request.
+SUPPORTED (Spanish & English names work):
+• Browsers: chrome/navegador, firefox, edge, brave
+• Communication: discord, whatsapp/wsp, telegram/tg, slack, teams, zoom
+• Music: spotify/música, vlc/reproductor
+• Productivity: word, excel/planilla, powerpoint/ppt/presentaciones, outlook/correo, onenote, notepad/notas, notepad++
+• Code: vscode/code/vs code, cursor, windsurf, postman, docker
+• System: terminal/consola, cmd, powershell/shell, calculadora/calculator, paint, archivos/explorador
+• Settings: settings/configuración/ajustes, administrador de tareas/task manager
+• Social: instagram/ig, twitter/x, facebook/fb, tiktok, linkedin, github
+• Google: youtube/yt, gmail/correo, drive, maps/mapas, chatgpt/gpt
+• Streaming: netflix, obs/streaming/obs studio
+• Gaming: steam, epic games, battle.net
+• Design: photoshop/ps, illustrator/ai, figma/diseño
+• Store: tienda windows/store, fotos/photos, cámara/camera, reloj/clock/alarma
+• Other: snipping tool/recortes/captura de pantalla, notion, obsidian, unity, winrar, 7zip`,
+      parameters: { type: 'object', properties: { appName: { type: 'string', description: 'App name in Spanish or English. Use natural names like "navegador", "música", "calculadora", "correo", "consola", "archivos", "discord", "word", "youtube".' } }, required: ['appName'] }
     },
     ...getIntegrationDeclarations(),
     {
-      name: 'search_web',
-      description: 'INTERNAL RESEARCH: Searches the web and returns text results WITHOUT opening the browser. Uses DuckDuckGo, Wikipedia, and other free APIs to fetch structured information. Returns the content directly so you can read, analyze, and compile it into your response. NEVER open the browser for research — use this tool instead. Use when the user asks you to investigate, research, look up, search, find information, or learn about something. Call fetch_url on any result links for deeper content.',
-      parameters: { type: 'object', properties: { query: { type: 'string', description: 'Search query' }, engine: { type: 'string', description: 'Engine: duckduckgo (default, general search), wikipedia (encyclopedic), youtube (video search).' } }, required: ['query'] }
-    },
-    {
-      name: 'open_browser',
-      description: 'ONLY use when the user EXPLICITLY asks you to open a website/browser/URL in their browser. DO NOT use for research — use search_web instead. The user must literally say "abre [site]" or "open [site]".',
-      parameters: { type: 'object', properties: { url: { type: 'string', description: 'Full URL to open (https://...)' }, reason: { type: 'string', description: 'Why we are opening this URL' } }, required: ['url', 'reason'] }
-    },
-    {
       name: 'execute_powershell',
-      description: 'Executes PowerShell on Windows 11. Use for: system info (IP, disk, RAM, OS), process management, file operations, registry reads, keyboard shortcuts (SendKeys), system settings. Do NOT use to open apps (use launch_app instead). Do NOT use for volume (use set_volume) or brightness (use set_brightness).',
-      parameters: { type: 'object', properties: { command: { type: 'string', description: 'PowerShell command to execute' }, description: { type: 'string', description: 'Brief description of what this command does' } }, required: ['command', 'description'] }
+      description: `Executes PowerShell commands on Windows. Use for system tasks, automation, and file management that can't be done with other tools.
+WHEN TO USE:
+• System info: IP address, disk space, RAM, OS version, hardware info
+• Process management: kill process, start service, stop service
+• File operations: batch rename, copy, delete multiple files, zip/unzip
+• Network: ping, tracert, net commands, wifi info, DNS
+• Registry: read/write registry keys
+• Automation: scheduled tasks, environment variables, system settings
+• Keyboard shortcuts: SendKeys (Ctrl+C, Alt+F4, Win+D, etc.)
+• Windows features: enable/disable features, install/uninstall
+• Scripts: run complex multi-line automation scripts
+
+DO NOT USE for:
+• Opening apps (use launch_app)
+• Volume (use set_volume)
+• Brightness (use set_brightness)
+• Web search (use search_web)
+• Weather (use get_weather)
+
+EXAMPLES:
+• Get IP: "Get-NetIPAddress -AddressFamily IPv4 | Where-Object {$_.InterfaceAlias -ne 'Loopback*'} | Select-Object IPAddress"
+• Disk space: "Get-PSDrive -PSProvider FileSystem | Format-Table"
+• Send keys: "$wsh = New-Object -ComObject wscript.shell; $wsh.SendKeys('%{F4}')"`,
+      parameters: { type: 'object', properties: { command: { type: 'string', description: 'PowerShell command or script to execute. Can be multi-line.' }, description: { type: 'string', description: 'Brief human-readable description of what this command does (shown to user).' } }, required: ['command', 'description'] }
     },
     {
       name: 'set_volume',
-      description: 'Sets Windows master audio volume from 0 to 100. Always use this tool (not PowerShell) for volume changes.',
-      parameters: { type: 'object', properties: { percentage: { type: 'integer', description: 'Volume level 0-100' } }, required: ['percentage'] }
+      description: 'Sets Windows master audio volume from 0 to 100. ALWAYS use this instead of PowerShell for volume control.',
+      parameters: { type: 'object', properties: { percentage: { type: 'integer', description: 'Volume level 0-100. 0=mute, 50=half, 100=max.' } }, required: ['percentage'] }
     },
     {
       name: 'set_brightness',
-      description: 'Sets screen brightness from 0 to 100. Always use this tool (not PowerShell) for brightness changes.',
-      parameters: { type: 'object', properties: { percentage: { type: 'integer', description: 'Brightness level 0-100' } }, required: ['percentage'] }
+      description: 'Sets screen brightness from 0 to 100. ALWAYS use this instead of PowerShell for brightness control.',
+      parameters: { type: 'object', properties: { percentage: { type: 'integer', description: 'Brightness level 0-100.' } }, required: ['percentage'] }
+    },
+    {
+      name: 'search_web',
+      description: `INTERNAL RESEARCH — Searches the web and returns text results WITHOUT opening the browser.
+USE THIS when you need to:
+• Find information, answer questions, look something up
+• Research topics, people, places, events
+• Get current news, prices, sports scores
+• Find definitions, explanations, how-to guides
+
+The user says: "busca", "investiga", "qué es", "quién es", "cuánto cuesta", "busca información", "find", "search", "look up", "what is", "who is"
+
+Returns structured text you can read and use in your response. Use fetch_url for deeper content from specific links.`,
+      parameters: { type: 'object', properties: { query: { type: 'string', description: 'Search query in the most natural language for the topic.' }, engine: { type: 'string', description: 'Engine: "duckduckgo" (general, default), "wikipedia" (encyclopedic facts), "youtube" (find videos).' } }, required: ['query'] }
+    },
+    {
+      name: 'open_browser',
+      description: 'Opens a specific URL in the default browser. ONLY use when the user explicitly asks to open a website/URL. Do NOT use for research — use search_web. The user says: "abre [url]", "ve a [site]", "navega a", "open [site]".',
+      parameters: { type: 'object', properties: { url: { type: 'string', description: 'Full URL (https://...)' }, reason: { type: 'string', description: 'Why we are opening this URL.' } }, required: ['url', 'reason'] }
     },
     {
       name: 'fetch_url',
-      description: 'Fetches the text content of a URL. Use to read articles, web pages, or extract data from sites. Returns plain text (max 3000 chars).',
-      parameters: { type: 'object', properties: { url: { type: 'string', description: 'Full URL (https://...)' }, reason: { type: 'string', description: 'Why fetching this URL' } }, required: ['url', 'reason'] }
+      description: 'Fetches and reads the text content of any URL. Use to read articles, documentation, or extract data from web pages. Returns plain text (max 3000 chars).',
+      parameters: { type: 'object', properties: { url: { type: 'string', description: 'Full URL (https://...)' }, reason: { type: 'string', description: 'Why fetching this URL.' } }, required: ['url', 'reason'] }
     },
     {
       name: 'show_notification',
-      description: 'Shows a Windows system notification from Jarvis.',
-      parameters: { type: 'object', properties: { title: { type: 'string', description: 'Notification title' }, body: { type: 'string', description: 'Notification body text' } }, required: ['title', 'body'] }
+      description: 'Shows a Windows system toast notification from Jarvis. Use for alerts, reminders, or confirmations the user should see even if Jarvis is minimized.',
+      parameters: { type: 'object', properties: { title: { type: 'string', description: 'Notification title (short, max 64 chars).' }, body: { type: 'string', description: 'Notification body text.' } }, required: ['title', 'body'] }
     },
     {
       name: 'get_system_time',
-      description: 'Gets the current system date, time, timezone, and day of week.',
+      description: 'Gets the current system date, time, timezone, and day of week. Use when the user asks "qué hora es", "what time is it", "qué día es".',
       parameters: { type: 'object', properties: {} }
     },
     {
       name: 'quick_note',
-      description: 'Saves a quick note or reminder in persistent memory.',
-      parameters: { type: 'object', properties: { note: { type: 'string', description: 'Note or reminder text to save' } }, required: ['note'] }
+      description: 'Saves a quick note or reminder in persistent memory that persists across sessions. Use when the user says "anota", "recuerda esto", "guarda esta nota", "nota que", "save this".',
+      parameters: { type: 'object', properties: { note: { type: 'string', description: 'Note or reminder text to save.' } }, required: ['note'] }
     },
     {
       name: 'remember_user_info',
-      description: 'Stores personal information about the user (name, preferences, interests, habits). Include ALL previously known details plus the new information.',
-      parameters: { type: 'object', properties: { details: { type: 'string', description: 'Everything known about the user' } }, required: ['details'] }
+      description: 'Stores or updates personal information about the user (name, preferences, interests, habits, location, work). IMPORTANT: Always include ALL previously known details plus the new info to avoid losing context.',
+      parameters: { type: 'object', properties: { details: { type: 'string', description: 'Complete user profile including all known information.' } }, required: ['details'] }
     },
     {
       name: 'open_file',
-      description: 'Opens any file, document, folder, or drive on the system using the default Windows application. Use for: PDF, DOCX, images, videos, folders, drives (C:\), shortcuts, any file path. Also works with network paths. NOT for opening apps (use launch_app) or URLs (use open_browser).',
-      parameters: { type: 'object', properties: { path: { type: 'string', description: 'Full path to the file, folder, or drive (e.g. "C:\\Users\\...\\document.pdf", "D:\\", "C:\\Users")' }, reason: { type: 'string', description: 'Why we are opening this path' } }, required: ['path', 'reason'] }
+      description: `Opens any file, folder, or drive using the default Windows application. Use for:
+• Documents: PDF, DOCX, XLSX, images, videos, audio
+• Folders: open a directory in File Explorer
+• Drives: "D:\\\\" opens the drive
+• Applications by path: "C:\\\\Program Files\\\\...\\\\app.exe"
+
+DO NOT use for websites (use open_browser) or installed apps by name (use launch_app).`,
+      parameters: { type: 'object', properties: { path: { type: 'string', description: 'Full path to the file, folder, or drive.' }, reason: { type: 'string', description: 'Why we are opening this.' } }, required: ['path', 'reason'] }
     },
     {
       name: 'get_weather',
-      description: 'Gets current weather and forecast for a city. Uses wttr.in (no API key needed). Returns temperature, conditions, humidity, wind. If the user has a default city configured, it will be used automatically; if the user asks for a different city, that becomes the new default.',
-      parameters: { type: 'object', properties: { city: { type: 'string', description: 'City name (e.g. "Mexico City", "Madrid", "Buenos Aires"). Optional — if omitted, the default city from config is used.' }, forecast: { type: 'string', description: 'forecast_days to get forecast (3 or 7 days) or "current" (default) for current weather' } } },
+      description: 'Gets current weather and forecast for any city. Returns temperature, conditions, humidity, wind speed. If user has a saved default city, it is used automatically.',
+      parameters: { type: 'object', properties: { city: { type: 'string', description: 'City name (e.g. "Buenos Aires", "Mexico City", "Madrid"). Omit to use saved default city.' }, forecast: { type: 'string', description: '"current" (default) for now, "3" for 3-day forecast, "7" for 7-day forecast.' } } }
     },
     {
       name: 'get_news',
-      description: 'Gets latest news headlines from a specific topic or general. Fetches from Google News RSS. Max 10 headlines.',
-      parameters: { type: 'object', properties: { topic: { type: 'string', description: 'News topic/category (e.g. "technology", "world", "sports", "science", "business", "entertainment", "health") or empty for top stories' } }, required: [] }
+      description: 'Gets the latest news headlines from Google News RSS. Returns up to 10 headlines with sources. Use when user asks about current events, noticias, news.',
+      parameters: { type: 'object', properties: { topic: { type: 'string', description: 'News topic: "technology", "world", "sports", "science", "business", "entertainment", "health", "politics". Leave empty for top headlines.' } } }
     },
     {
       name: 'deep_research',
-      description: 'Performs COMPREHENSIVE multi-source research on any topic. Uses multiple search engines and APIs to gather information, then returns ALL findings in a structured format. Best for complex questions requiring thorough investigation. Shows step-by-step research progress. Use this when the user says "investiga", "averigua", "investigate", "research", "what is", "who is", "tell me everything about", "deep dive".',
-      parameters: { type: 'object', properties: { topic: { type: 'string', description: 'The topic or question to research deeply' }, depth: { type: 'string', description: 'Research depth: "quick" (single source, fast), "normal" (multiple sources, default), "deep" (all sources, comprehensive)' } }, required: ['topic'] }
+      description: `Performs COMPREHENSIVE multi-source research on any topic. Uses multiple search engines to gather and compile information. Returns all findings in a structured report format.
+USE when the user says: "investiga a fondo", "investiga", "averigua todo sobre", "dame información completa sobre", "investigate", "research", "tell me everything about", "deep dive into".
+For simple lookups, use search_web instead.`,
+      parameters: { type: 'object', properties: { topic: { type: 'string', description: 'Topic or question to research comprehensively.' }, depth: { type: 'string', description: '"quick" (fast, 1 source), "normal" (multiple sources, default), "deep" (all sources, most comprehensive).' } }, required: ['topic'] }
     },
     {
       name: 'file_operation',
-      description: 'Performs file and folder operations: list directory contents, read file content, write/save content to file, delete files/folders, move/rename, copy, search/find files by name, get file size/info. Works with any path on the system.',
-      parameters: { type: 'object', properties: { operation: { type: 'string', description: 'Operation type: list, read, write, delete, move, copy, find, info' }, path: { type: 'string', description: 'Source path for the operation' }, content: { type: 'string', description: 'Content to write (required for write operation)' }, destination: { type: 'string', description: 'Destination path (required for move and copy operations)' }, pattern: { type: 'string', description: 'Search pattern (required for find operation, e.g. "*.txt", "*.js", "*report*")' } }, required: ['operation', 'path'] }
+      description: `Performs file system operations. Use for reading, writing, listing, moving, copying, or deleting files and folders.
+OPERATIONS:
+• list: List directory contents (path = directory)
+• read: Read file content (path = file)
+• write: Save content to file (path + content required)
+• delete: Delete file or folder (path)
+• move: Move/rename file (path = source, destination = target)
+• copy: Copy file (path = source, destination = target)
+• find: Search for files by pattern (path = search dir, pattern = e.g. "*.pdf")
+• info: Get file size, date, type (path = file)`,
+      parameters: { type: 'object', properties: {
+        operation: { type: 'string', description: 'Operation: list, read, write, delete, move, copy, find, info.' },
+        path: { type: 'string', description: 'Source path. Use %USERPROFILE%, %DESKTOP%, %DOCUMENTS% for common locations.' },
+        content: { type: 'string', description: 'Content to write (for write operation).' },
+        destination: { type: 'string', description: 'Destination path (for move/copy).' },
+        pattern: { type: 'string', description: 'File pattern (for find): "*.txt", "*report*", "project*.js".' }
+      }, required: ['operation', 'path'] }
     },
     {
       name: 'computer_action',
-      description: 'Performs keyboard and mouse actions: type text (SendKeys), press keys (Enter, Tab, Esc, F5, Win+D, etc.), clipboard get/set, focus a window by title. Uses PowerShell SendKeys and Win32 API.',
-      parameters: { type: 'object', properties: { action: { type: 'string', description: 'Action type: type_text, press_keys, clipboard_get, clipboard_set, focus_window, screenshot' }, keys: { type: 'string', description: 'Keys to press (for press_keys). Enter=~, Tab={TAB}, Esc={ESC}, F5={F5}, Win={LWIN}, arrow keys={UP}{DOWN}{LEFT}{RIGHT}. Use + for Shift, ^ for Ctrl, % for Alt. For type_text: the text to type.' }, windowTitle: { type: 'string', description: 'Window title to focus (for focus_window action)' } }, required: ['action'] }
+      description: `Performs keyboard, clipboard, and window control actions. Use for automation and UI control.
+ACTIONS:
+• type_text: Types text in the focused window (keys = text to type)
+• press_keys: Sends key combination (Enter=~, Tab={TAB}, Esc={ESC}, F5={F5}, Ctrl+C=^c, Alt+F4=%{F4}, Win+D={LWIN}d, Ctrl+Z=^z, Ctrl+V=^v)
+• clipboard_get: Gets current clipboard text content
+• clipboard_set: Sets clipboard text (keys = text to copy)
+• focus_window: Focuses a window by its title (windowTitle required)
+• screenshot: Takes a screenshot, saves to Desktop
+
+EXAMPLES:
+• Close active window: action="press_keys", keys="%{F4}"
+• Copy all: action="press_keys", keys="^a^c"
+• Open Task Manager: action="press_keys", keys="^+{ESC}"
+• Show Desktop: action="press_keys", keys="{LWIN}d"
+• Minimize all: action="press_keys", keys="{LWIN}m"`,
+      parameters: { type: 'object', properties: {
+        action: { type: 'string', description: 'Action: type_text, press_keys, clipboard_get, clipboard_set, focus_window, screenshot.' },
+        keys: { type: 'string', description: 'Keys or text for the action.' },
+        windowTitle: { type: 'string', description: 'Window title to focus (for focus_window).' }
+      }, required: ['action'] }
     },
     {
       name: 'youtube_action',
-      description: 'Searches YouTube for a video and opens it in the browser, or gets video info. Does NOT download videos.',
-      parameters: { type: 'object', properties: { action: { type: 'string', description: 'Action: search (searches and opens first result), info (gets video info from URL)' }, query: { type: 'string', description: 'Search query or YouTube URL' } }, required: ['action', 'query'] }
+      description: 'Searches YouTube for a video and opens it in the browser. Use when user asks to find or watch a YouTube video.',
+      parameters: { type: 'object', properties: { action: { type: 'string', description: '"search" (searches and opens first result), "info" (gets info from a YouTube URL).' }, query: { type: 'string', description: 'Search terms or YouTube URL.' } }, required: ['action', 'query'] }
     },
     {
       name: 'set_reminder',
-      description: 'Sets a timed reminder. Schedules a Windows task that shows a notification at the specified time. For simple notes use quick_note instead.',
-      parameters: { type: 'object', properties: { reminder: { type: 'string', description: 'Reminder text/message' }, time: { type: 'string', description: 'When to remind. Can be: "in X minutes", "in X hours", "at HH:MM", "tomorrow at HH:MM", or an absolute datetime like "2025-12-31T18:00"' } }, required: ['reminder', 'time'] }
+      description: `Sets a Windows scheduled reminder that shows a notification at a specific time. Use when the user says "recuérdame", "pon un recordatorio", "avísame a las", "remind me".
+Time formats: "in 30 minutes", "in 2 hours", "at 15:30", "tomorrow at 9:00", "2025-12-31T18:00".`,
+      parameters: { type: 'object', properties: {
+        reminder: { type: 'string', description: 'Reminder message text.' },
+        time: { type: 'string', description: 'When: "in X minutes/hours", "at HH:MM", "tomorrow at HH:MM", or ISO datetime.' }
+      }, required: ['reminder', 'time'] }
+    },
+    {
+      name: 'set_timer',
+      description: 'Sets a countdown timer. When it expires, shows a Windows notification. Use when user says "pon un temporizador de", "ponme X minutos", "set a timer".',
+      parameters: { type: 'object', properties: {
+        label: { type: 'string', description: 'Timer label (e.g. "Pasta", "Reunión", "Ejercicio").' },
+        duration: { type: 'integer', description: 'Duration in seconds (60=1min, 300=5min, 600=10min, 1800=30min, 3600=1h).' }
+      }, required: ['label', 'duration'] }
     },
     {
       name: 'desktop_action',
-      description: 'Manages the Windows desktop: change wallpaper (via image URL or solid color), organize desktop files into folders, clean desktop (move all files into a dated folder), show system stats (CPU, RAM, disk, uptime).',
-      parameters: { type: 'object', properties: { action: { type: 'string', description: 'Action: wallpaper (change desktop wallpaper), organize (group files into folders by type), clean (move all files to a date-stamped folder), stats (CPU/RAM/disk/uptime info)' }, value: { type: 'string', description: 'For wallpaper: URL to an image, or a hex color like "#1a1a2e". For organize/clean: optional target folder path.' } }, required: ['action'] }
+      description: 'Manages the Windows desktop: change wallpaper (via image URL or hex color), get system stats (CPU/RAM/disk).',
+      parameters: { type: 'object', properties: {
+        action: { type: 'string', description: '"wallpaper" (change wallpaper), "stats" (system CPU/RAM/disk info).' },
+        value: { type: 'string', description: 'For wallpaper: image URL or hex color like "#1a1a2e".' }
+      }, required: ['action'] }
     },
     {
       name: 'process_file',
-      description: 'Extracts text content from documents: PDF, DOCX/DOC, XLSX/XLS, CSV, images (OCR via PowerShell), ZIP archives (list contents). Uses PowerShell and Windows built-in tools.',
-      parameters: { type: 'object', properties: { path: { type: 'string', description: 'Full path to the file' }, format: { type: 'string', description: 'File format if not determinable from extension: pdf, docx, xlsx, csv, image, zip, text' } }, required: ['path'] }
-    },
-    {
-      name: 'youtube_download',
-      description: 'Downloads a YouTube video or audio to the user\'s Desktop/Downloads folder using yt-dlp. Supports: best quality video+audio (mp4), audio-only (mp3), custom format. Progress is shown in diagnostics. Videos go to a JARVIS_Youtube subfolder.',
-      parameters: { type: 'object', properties: { url: { type: 'string', description: 'Full YouTube URL (https://www.youtube.com/watch?v=...) or share link (https://youtu.be/...)' }, format: { type: 'string', description: 'Download format: "video" (best mp4, default), "audio" (best mp3 audio only), "custom" (specify via format_code)' }, format_code: { type: 'string', description: 'yt-dlp format code for custom downloads (e.g. "137+140" for best video+audio, "251" for opus audio). Only used when format="custom".' } }, required: ['url'] }
+      description: 'Extracts and reads text content from documents. Use to read PDFs, Word docs, Excel sheets, CSVs, images, ZIP archives.',
+      parameters: { type: 'object', properties: {
+        path: { type: 'string', description: 'Full path to the file.' },
+        format: { type: 'string', description: 'File format if unclear from extension: pdf, docx, xlsx, csv, image, zip, text.' }
+      }, required: ['path'] }
     },
     {
       name: 'translate_text',
-      description: 'Translates text from any language to Spanish. Use for translating words, phrases, documents, or messages. Returns the translation with confidence.',
-      parameters: { type: 'object', properties: { text: { type: 'string', description: 'Text to translate' }, targetLang: { type: 'string', description: 'Target language code (es=Spanish, en=English, fr=French, de=German, it=Italian, pt=Portuguese, ja=Japanese, zh=Chinese, ru=Russian). Default: es.' } }, required: ['text'] }
+      description: 'Translates text between languages. Use when user asks to translate words, phrases, or sentences.',
+      parameters: { type: 'object', properties: {
+        text: { type: 'string', description: 'Text to translate.' },
+        targetLang: { type: 'string', description: 'Target language code: es (Spanish), en (English), fr (French), de (German), it (Italian), pt (Portuguese), ja (Japanese), zh (Chinese), ru (Russian). Default: es.' }
+      }, required: ['text'] }
     },
     {
       name: 'list_processes',
-      description: 'Lists running Windows processes with CPU and memory usage. Can filter by name or kill a process by PID or name.',
-      parameters: { type: 'object', properties: { action: { type: 'string', description: 'Action: list (show top processes, default), filter (search by name), kill (terminate process)' }, name: { type: 'string', description: 'Process name to filter or kill (e.g. "notepad", "chrome"). Required for filter and kill actions.' }, pid: { type: 'integer', description: 'Process ID to kill (alternative to name for kill action)' } }, required: ['action'] }
+      description: 'Lists or manages running Windows processes. Shows CPU and memory usage. Can filter by name or kill processes.',
+      parameters: { type: 'object', properties: {
+        action: { type: 'string', description: '"list" (top 20 by CPU, default), "filter" (search by name), "kill" (terminate by name or PID).' },
+        name: { type: 'string', description: 'Process name for filter/kill (e.g. "chrome", "notepad").' },
+        pid: { type: 'integer', description: 'Process ID to kill.' }
+      }, required: ['action'] }
     },
     {
       name: 'system_stats',
-      description: 'Gets real-time system statistics: CPU usage percentage, RAM usage (used/total), disk usage per drive, uptime, OS version. Quick summary of system health.',
+      description: 'Gets real-time system health: CPU usage %, RAM used/total, disk space per drive, uptime, OS version. Use when user asks about computer performance.',
       parameters: { type: 'object', properties: {} }
     },
     {
       name: 'find_files',
-      description: 'Searches for files and folders on the system by name pattern. Returns path, size, and last modified date. Searches recursively. Can limit results.',
-      parameters: { type: 'object', properties: { pattern: { type: 'string', description: 'File name pattern to search for (supports wildcards: *.txt, *report*, project*.js)' }, path: { type: 'string', description: 'Directory to search in. Default: Desktop.' }, maxResults: { type: 'integer', description: 'Maximum results to return (default 20, max 50)' } }, required: ['pattern'] }
+      description: 'Searches for files and folders by name pattern. Returns path, size, and date. Use when user asks to find a file or folder.',
+      parameters: { type: 'object', properties: {
+        pattern: { type: 'string', description: 'Search pattern with wildcards: "*.pdf", "*.txt", "*informe*", "proyecto*.js", "*.mp4".' },
+        path: { type: 'string', description: 'Directory to search. Default: Desktop and Documents.' },
+        maxResults: { type: 'integer', description: 'Max results to return (default 20, max 50).' }
+      }, required: ['pattern'] }
     },
     {
-      name: 'set_timer',
-      description: 'Sets a countdown timer. When time expires, shows a Windows notification. Can set multiple timers simultaneously.',
-      parameters: { type: 'object', properties: { label: { type: 'string', description: 'Label for the timer (e.g. "Pasta", "Meeting", "Break")' }, duration: { type: 'integer', description: 'Duration in seconds (60 = 1 min, 300 = 5 min, 600 = 10 min, 3600 = 1 hour)' } }, required: ['label', 'duration'] }
+      name: 'youtube_download',
+      description: 'Downloads a YouTube video or audio using yt-dlp. Saves to Desktop/JARVIS_Youtube folder.',
+      parameters: { type: 'object', properties: {
+        url: { type: 'string', description: 'Full YouTube URL or youtu.be short link.' },
+        format: { type: 'string', description: '"video" (best quality mp4, default), "audio" (mp3 audio only), "custom" (specify format_code).' },
+        format_code: { type: 'string', description: 'yt-dlp format code for custom downloads. Only used when format="custom".' }
+      }, required: ['url'] }
     }
   ];
 }

@@ -20,6 +20,9 @@ import {
 
 import { handleDeepResearch } from './handlers/research.js';
 
+import { createLogger } from '../utils/logger.js';
+const _log = createLogger('EXECUTOR');
+
 let toolExecutionWatchdog = null;
 const sessionContext = { lastOpenedApp: '', lastCommand: '', lastSearchTopic: '' };
 
@@ -58,9 +61,6 @@ function _getToolDescription(call) {
   const detail = call.args?.description || call.args?.query || call.args?.appName || call.args?.path || call.args?.url || '';
   return detail ? base + ': ' + detail : base;
 }
-
-import { createLogger } from '../utils/logger.js';
-const _log = createLogger('EXECUTOR');
 
 async function _trackCommand(commandType) {
   if (!commandType) return;
@@ -121,6 +121,7 @@ async function _dispatchTool(call, store, sessionContext) {
     if (result.success) _trackCommand(`brillo: ${call.args.percentage}%`);
     return result;
   } else if (call.name === 'launch_app') {
+    _log('info', `Launch: "${call.args.appName}"`);
     const result = await handleLaunchApp(call);
     if (result.success) {
       sessionContext.lastOpenedApp = call.args.appName;
@@ -252,10 +253,12 @@ export async function executeToolCall(calls) {
   store.set('isExecutingTool', true);
   store.set('toolCount', calls.length);
   store.set('toolStartTime', Date.now());
+
   if (store.get('focusMode')) {
     store.set('_isSpecialFocusTurn', true);
     if (calls[0]) _updateFocusHudStatus(calls[0]);
   }
+
   if (toolExecutionWatchdog) clearTimeout(toolExecutionWatchdog);
   toolExecutionWatchdog = setTimeout(() => {
     _log('warn', 'Tool execution watchdog triggered');
@@ -263,7 +266,7 @@ export async function executeToolCall(calls) {
     store.set('toolStartTime', null);
     store.set('isExecutingTool', false);
     store.setState(store.get('micActive') ? STATE.LISTENING : STATE.IDLE);
-  }, 25000);
+  }, 60000);
 
   store.setState(STATE.WORKING);
   let _toolCallId = null;
@@ -274,51 +277,64 @@ export async function executeToolCall(calls) {
   const responses = [];
   const totalTools = calls.length;
   let completedSteps = 0;
+
   try {
     for (let ci = 0; ci < totalTools; ci++) {
       const call = calls[ci];
-      if (store.get('focusMode')) {
-        _updateFocusHudStatus(call);
-      }
+      if (store.get('focusMode')) _updateFocusHudStatus(call);
+
       let result = { success: false, output: 'Herramienta no reconocida.' };
       const actionDesc = _getToolDescription(call);
       showProgressSteps(ci + 1, totalTools, actionDesc);
       store.set('_currentToolDesc', actionDesc);
-      const toolTimeout = (call.name === 'launch_app' || call.name === 'computer_action' || call.name === 'find_files') ? 30000 : 15000;
+
+      // Per-tool timeouts
+      const toolTimeout =
+        call.name === 'deep_research'     ? 120000 :
+        call.name === 'youtube_download'  ? 90000  :
+        (call.name === 'launch_app' || call.name === 'find_files') ? 45000 :
+        (call.name === 'execute_powershell' || call.name === 'computer_action' || call.name === 'file_operation') ? 25000 : 15000;
+
       try {
         result = await _withTimeout(_dispatchTool(call, store, sessionContext), call.name, toolTimeout);
       } catch (toolErr) {
-          _log('error', `Error en ${call.name}: ${toolErr.message}`);
-          if (window.JarvisSupervisor) {
-            window.JarvisSupervisor.record('tool_error', { name: call.name, error: toolErr.message });
-            window.JarvisSupervisor.recordToolResult(_toolCallId, call.name, { success: false, output: toolErr.message });
-          }
-          result = { success: false, output: toolErr.message };
+        _log('error', `Error en ${call.name}: ${toolErr.message}`);
+        if (window.JarvisSupervisor) {
+          window.JarvisSupervisor.record('tool_error', { name: call.name, error: toolErr.message });
+          window.JarvisSupervisor.recordToolResult(_toolCallId, call.name, { success: false, output: toolErr.message });
         }
+        result = { success: false, output: toolErr.message };
+      }
 
       completedSteps++;
       if (result.success) {
-        showProgressSteps(ci + 1, totalTools, '\u2713 ' + call.name);
+        showProgressSteps(ci + 1, totalTools, '✓ ' + call.name);
       } else {
         showProgressStep('error', 'Fallo', call.name + ': ' + (result.output || '').substring(0, 60));
       }
       if (window.JarvisSupervisor && result) window.JarvisSupervisor.recordToolResult(_toolCallId, call.name, result);
+
       responses.push({
         id: call.id,
         name: call.name,
         response: {
           success: result.success,
-          result: result.success ? (result.output?.trim() || 'Completado exitosamente.') : `Error de ejecución: ${result.output || 'fallo desconocido'}`,
+          result: result.success
+            ? (result.output?.trim() || 'Completado exitosamente.')
+            : `Error de ejecución: ${result.output || 'fallo desconocido'}`,
           app: sessionContext.lastOpenedApp || '',
           topic: sessionContext.lastSearchTopic || ''
         }
       });
+
       if (!result.success) _log('warn', `Tool ${call.name} failed: ${(result.output || '').substring(0, 120)}`);
     }
+
     // Show completion status, then auto-hide after 2.5s
     const { showDoneStatus, _hideProgress } = await import('../chat/messages.js');
     showDoneStatus(totalTools);
     setTimeout(() => { try { _hideProgress(); } catch (e) {} }, 2500);
+
   } catch (loopErr) {
     _log('error', `Error fatal en executeToolCall: ${loopErr.message}`);
     showSystemErrorMessage(`Error interno del sistema: ${loopErr.message}`);

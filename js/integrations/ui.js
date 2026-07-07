@@ -1,6 +1,4 @@
 import { getAllIntegrations, getIntegrationStatus, getIntegrationConfig, configureIntegration, disconnectIntegration } from './index.js';
-import { googleIntegration } from './google.js';
-import { spotifyIntegration } from './spotify.js';
 import { closeModal } from '../config/index.js';
 
 import { createLogger } from '../utils/logger.js';
@@ -101,7 +99,7 @@ function _showConfigForm(id) {
     <div id="int-result-${id}" class="int-result"></div>
     <div class="int-cfg-actions">
       <button class="int-btn primary" id="int-test-btn" data-id="${id}">Probar</button>
-      ${id === 'google' || id === 'spotify' ? `<button class="int-btn" id="int-auth-btn" data-id="${id}">Autorizar</button>` : ''}
+      
       ${s.cls === 'green' ? `<button class="int-btn danger" id="int-disc-btn" data-id="${id}">Desconectar</button>` : ''}
       <button class="int-btn guide-btn" id="int-guide-btn" data-id="${id}">Guíame Jarvis</button>
     </div>
@@ -123,27 +121,6 @@ function _showConfigForm(id) {
     rd.className = r.success ? 'int-result ok' : 'int-result fail';
     if (r.success) setTimeout(() => _showConfigForm(id), 1500);
   });
-
-  if (id === 'google' || id === 'spotify') {
-    body.querySelector('#int-auth-btn')?.addEventListener('click', async () => {
-      const io = id === 'google' ? googleIntegration : spotifyIntegration;
-      const cid = body.querySelector(`#int-${id}-clientId`)?.value.trim();
-      const csec = body.querySelector(`#int-${id}-clientSecret`)?.value.trim();
-      const rd = body.querySelector('.int-result');
-      if (!cid || !csec) { rd.textContent = '✗ Completa Client ID y Client Secret'; rd.className = 'int-result fail'; return; }
-      rd.textContent = 'Abriendo navegador...';
-      rd.className = 'int-result';
-      try {
-        const r = await io.startAuth(cid, csec);
-        rd.textContent = `✓ Conectado como ${r.email}`;
-        rd.className = 'int-result ok';
-        setTimeout(() => _showConfigForm(id), 1500);
-      } catch (e) {
-        rd.textContent = `✗ ${e.message}`;
-        rd.className = 'int-result fail';
-      }
-    });
-  }
 
   body.querySelector('#int-disc-btn')?.addEventListener('click', () => { disconnectIntegration(id); _showConfigForm(id); });
 

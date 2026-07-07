@@ -28,22 +28,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('ws-status', handler);
   },
 
-  // ─── Local Audio Engine (Python VAD+Whisper) ─────────
-  startLocalAudio: () => ipcRenderer.invoke('start-local-audio'),
-  stopLocalAudio: () => ipcRenderer.invoke('stop-local-audio'),
-  onLocalTranscript: (callback) => {
-    const handler = (_event, data) => callback(data);
-    ipcRenderer.on('local-transcript', handler);
-    return () => ipcRenderer.removeListener('local-transcript', handler);
-  },
   checkApiKey: () => ipcRenderer.invoke('check-api-key'),
   setupGeminiKey: (key) => ipcRenderer.invoke('setup-gemini-key', key),
-  speakLocal: (text) => ipcRenderer.invoke('local-tts', text),
-  onLocalTTSComplete: (callback) => {
-    const handler = (_event, data) => callback(data);
-    ipcRenderer.on('local-tts-complete', handler);
-    return () => ipcRenderer.removeListener('local-tts-complete', handler);
-  },
   getHomeDir: () => ipcRenderer.invoke('get-home-dir'),
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   onTtsState: (callback) => {
@@ -51,14 +37,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('tts-state', handler);
     return () => ipcRenderer.removeListener('tts-state', handler);
   },
-  onLocalAudioError: (callback) => {
-    const handler = (_event, data) => callback(data);
-    ipcRenderer.on('local-audio-error', handler);
-    return () => ipcRenderer.removeListener('local-audio-error', handler);
-  },
-
-  // ─── OAuth local server (Gmail redirect flow) ────────
-  startOAuthServer: (port) => ipcRenderer.invoke('start-oauth-server', port),
 
   // ─── Safe File Operations (path-validated, no raw PS) ────────────────
   fileRead: (filePath) => ipcRenderer.invoke('file-read', filePath),
@@ -74,9 +52,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   secureCredentialSet: (key, value) => ipcRenderer.invoke('secure-credential-set', key, value),
   secureCredentialDelete: (key) => ipcRenderer.invoke('secure-credential-delete', key),
   secureCredentialList: () => ipcRenderer.invoke('secure-credential-list'),
-
-  // ─── Auto-Update ──────────────────────────────────────────
-  checkForUpdate: () => ipcRenderer.invoke('check-for-update'),
 
   // ─── Feedback Email ───────────────────────────────────────
   sendFeedbackEmail: (data) => ipcRenderer.invoke('send-feedback-email', data),

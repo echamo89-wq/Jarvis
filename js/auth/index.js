@@ -35,7 +35,7 @@ export async function checkAuth() {
 
   _hideAuth();
   if (_authCallback) {
-    _authCallback({ authed: true, user: { tier: 'free', email: 'local@jarvis.local', username: 'Modo Local' } });
+    _authCallback({ authed: true, user: { tier: 'local', email: 'local@jarvis.local', username: 'Modo Local' } });
   }
   return true;
 }
@@ -74,7 +74,7 @@ function _completeOnboarding() {
   localStorage.setItem(CREATOR_KEY, 'true');
   _hideAuth();
   if (_authCallback) {
-    _authCallback({ authed: true, user: { tier: 'free', email: 'local@jarvis.local', username: 'Modo Local' } });
+    _authCallback({ authed: true, user: { tier: 'local', email: 'local@jarvis.local', username: 'Modo Local' } });
   }
 }
 
@@ -125,8 +125,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (errorEl) { errorEl.textContent = 'La API key parece inválida (muy corta)'; errorEl.style.display = 'block'; }
         return;
       }
-      saveBtn.disabled = true;
-      saveBtn.textContent = 'Verificando...';
+      
+      const loadingEl = document.getElementById('auth-gemini-loading');
+      saveBtn.style.display = 'none';
+      if (loadingEl) loadingEl.style.display = 'flex';
       if (errorEl) errorEl.style.display = 'none';
       if (statusEl) statusEl.style.display = 'none';
 
@@ -139,21 +141,26 @@ document.addEventListener('DOMContentLoaded', () => {
         if (resp.ok && data.models) {
           if (statusEl) {
             statusEl.textContent = 'Conexión exitosa con Gemini';
-            statusEl.style.color = 'var(--success)';
+            statusEl.style.color = '#2ed573';
             statusEl.style.background = 'rgba(46,213,115,0.08)';
             statusEl.style.display = 'block';
           }
+          if (loadingEl) loadingEl.style.display = 'none';
           localStorage.setItem('jarvis_gemini_api_key', key);
           setTimeout(() => _completeOnboarding(), 800);
         } else {
           const msg = data?.error?.message || 'Key inválida o sin permisos';
           if (errorEl) { errorEl.textContent = msg; errorEl.style.display = 'block'; }
+          if (loadingEl) loadingEl.style.display = 'none';
           saveBtn.disabled = false;
+          saveBtn.style.display = 'block';
           saveBtn.textContent = 'Guardar y continuar';
         }
       } catch (err) {
         if (errorEl) { errorEl.textContent = 'Error de conexión: ' + err.message; errorEl.style.display = 'block'; }
+        if (loadingEl) loadingEl.style.display = 'none';
         saveBtn.disabled = false;
+        saveBtn.style.display = 'block';
         saveBtn.textContent = 'Guardar y continuar';
       }
     });

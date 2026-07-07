@@ -1,7 +1,7 @@
 let _lastError = null;
 let _toastEl = null;
 // Configure your support email here, or leave empty to disable the mailto fallback
-const FEEDBACK_EMAIL = '';
+const FEEDBACK_EMAIL = 'feedback@jarvis.local';
 
 function _ensureToast() {
   if (_toastEl) return;

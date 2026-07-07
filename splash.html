@@ -10,16 +10,33 @@
     body {
       width: 100vw;
       height: 100vh;
-      background: #000000;
+      background: #020408;
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: flex-start;
+      justify-content: center;
       font-family: 'Segoe UI', system-ui, sans-serif;
       overflow: hidden;
       user-select: none;
       -webkit-app-region: drag;
-      padding-top: 35px;
+      padding: 20px;
+      position: relative;
+    }
+
+    /* ── Grid Holográfico de Fondo ── */
+    body::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: 
+        linear-gradient(rgba(0, 191, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 191, 255, 0.03) 1px, transparent 1px);
+      background-size: 20px 20px;
+      background-position: center;
+      mask-image: radial-gradient(circle, black, transparent 80%);
+      -webkit-mask-image: radial-gradient(circle, black, transparent 80%);
+      pointer-events: none;
+      z-index: 0;
     }
 
     /* ── Partículas de fondo ── */
@@ -33,202 +50,121 @@
       position: absolute;
       width: 2px; height: 2px;
       border-radius: 50%;
-      background: rgba(99, 179, 237, 0.3);
+      background: rgba(0, 191, 255, 0.4);
       animation: float linear infinite;
     }
 
     @keyframes float {
-      0%   { transform: translateY(110vh) scale(0); opacity: 0; }
+      0%   { transform: translateY(105vh) scale(0); opacity: 0; }
       10%  { opacity: 0.8; }
       90%  { opacity: 0.4; }
       100% { transform: translateY(-10vh) scale(1.5); opacity: 0; }
     }
 
-    /* ── Anillo de luz exterior ── */
-    .outer-ring {
+    /* ── Arc Reactor Stark SVG Animado ── */
+    .reactor-container {
       position: relative;
-      width: 130px;
-      height: 130px;
+      width: 150px;
+      height: 150px;
       display: flex;
       align-items: center;
       justify-content: center;
-      margin-bottom: 20px;
+      margin-bottom: 25px;
       z-index: 1;
+      -webkit-app-region: no-drag;
     }
 
-    .ring-spin {
-      position: absolute;
-      inset: 0;
-      border-radius: 50%;
-      border: 2px solid transparent;
-      border-top-color: rgba(99, 179, 237, 0.8);
-      border-right-color: rgba(99, 179, 237, 0.2);
-      animation: spin 2s linear infinite;
+    .reactor-svg {
+      width: 100%;
+      height: 100%;
+      filter: drop-shadow(0 0 15px rgba(0, 191, 255, 0.6));
     }
 
-    .ring-spin-2 {
-      position: absolute;
-      inset: 6px;
-      border-radius: 50%;
-      border: 1px solid transparent;
-      border-bottom-color: rgba(147, 112, 219, 0.6);
-      border-left-color: rgba(147, 112, 219, 0.1);
-      animation: spin 3s linear infinite reverse;
+    /* Rotaciones del Reactor */
+    .ring-outer {
+      transform-origin: 100px 100px;
+      animation: rotate-cw 12s linear infinite;
+    }
+    .ring-middle {
+      transform-origin: 100px 100px;
+      animation: rotate-ccw 8s linear infinite;
+    }
+    .ring-inner {
+      transform-origin: 100px 100px;
+      animation: rotate-cw 4s linear infinite;
+    }
+    .core-pulse {
+      transform-origin: 100px 100px;
+      animation: pulse-grow 2s ease-in-out infinite;
     }
 
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    /* ── Logo container ── */
-    .logo-container {
-      width: 100px;
-      height: 100px;
-      border-radius: 50%;
-      background: radial-gradient(circle at 30% 30%, #1a1f2e, #0a0d14);
-      box-shadow:
-        0 0 30px rgba(99, 179, 237, 0.15),
-        0 0 60px rgba(99, 179, 237, 0.05),
-        inset 0 0 20px rgba(0,0,0,0.5);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      position: relative;
-      overflow: hidden;
-      animation: pulse-glow 3s ease-in-out infinite;
+    @keyframes rotate-cw {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    @keyframes rotate-ccw {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(-360deg); }
+    }
+    @keyframes pulse-grow {
+      0%, 100% { transform: scale(1); opacity: 0.8; filter: drop-shadow(0 0 5px rgba(0, 191, 255, 0.8)); }
+      50% { transform: scale(1.15); opacity: 1; filter: drop-shadow(0 0 18px rgba(0, 191, 255, 1)); }
     }
 
-    @keyframes pulse-glow {
-      0%, 100% { box-shadow: 0 0 30px rgba(99,179,237,0.15), 0 0 60px rgba(99,179,237,0.05), inset 0 0 20px rgba(0,0,0,0.5); }
-      50%       { box-shadow: 0 0 45px rgba(99,179,237,0.30), 0 0 90px rgba(99,179,237,0.10), inset 0 0 20px rgba(0,0,0,0.5); }
-    }
-
-    .logo-container img {
-      width: 65px;
-      height: 65px;
-      object-fit: contain;
-      border-radius: 50%;
-      filter: drop-shadow(0 0 10px rgba(99, 179, 237, 0.5));
-      animation: breathe 3s ease-in-out infinite;
-    }
-
-    @keyframes breathe {
-      0%, 100% { transform: scale(1); }
-      50%       { transform: scale(1.03); }
-    }
-
-    /* ── Nombre ── */
+    /* ── Marca y Nombre ── */
     .brand-name {
-      font-size: 24px;
-      font-weight: 700;
-      letter-spacing: 8px;
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: 10px;
       color: #fff;
       text-transform: uppercase;
-      margin-bottom: 2px;
-      background: linear-gradient(135deg, #e0eaff 0%, #63b3ed 50%, #9370db 100%);
+      margin-bottom: 4px;
+      background: linear-gradient(135deg, #ffffff 0%, #00bfff 50%, #8a2be2 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
+      text-shadow: 0 0 20px rgba(0, 191, 255, 0.2);
       animation: fade-in 0.8s ease-out;
       z-index: 1;
     }
 
     .brand-subtitle {
       font-size: 9px;
-      letter-spacing: 4px;
-      color: rgba(99, 179, 237, 0.5);
+      letter-spacing: 5px;
+      color: rgba(0, 191, 255, 0.5);
       text-transform: uppercase;
       margin-bottom: 25px;
       animation: fade-in 1s ease-out;
       z-index: 1;
     }
 
-    /* ── Selector de OS ── */
-    .os-selector-container {
-      width: 320px;
-      margin-bottom: 20px;
-      z-index: 2;
-      animation: fade-in 1.2s ease-out;
-      background: rgba(10, 15, 26, 0.6);
-      border: 1px solid rgba(99, 179, 237, 0.1);
-      border-radius: 12px;
-      padding: 12px;
-      backdrop-filter: blur(10px);
-      -webkit-app-region: no-drag;
-    }
-
-    .os-title {
-      font-size: 9px;
-      letter-spacing: 2px;
-      color: rgba(99, 179, 237, 0.6);
-      text-transform: uppercase;
-      margin-bottom: 10px;
-      text-align: center;
-      font-weight: 600;
-    }
-
-    .os-options {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .os-btn {
-      width: 100%;
-      background: rgba(255, 255, 255, 0.02);
-      border: 1px solid rgba(255, 255, 255, 0.05);
+    /* ── Tarjeta de Detección de OS ── */
+    .os-card {
+      width: 280px;
+      background: rgba(5, 10, 20, 0.7);
+      border: 1px solid rgba(0, 191, 255, 0.15);
       border-radius: 8px;
       padding: 8px 12px;
-      color: rgba(255, 255, 255, 0.6);
-      font-size: 11px;
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      cursor: pointer;
-      transition: all 0.25s ease;
-      font-weight: 500;
-      outline: none;
-      -webkit-app-region: no-drag;
-    }
-
-    .os-btn:hover {
-      background: rgba(99, 179, 237, 0.06);
-      border-color: rgba(99, 179, 237, 0.25);
-      color: #fff;
-    }
-
-    .os-btn.selected {
-      background: rgba(99, 179, 237, 0.12);
-      border-color: rgba(99, 179, 237, 0.6);
-      color: #63b3ed;
-      box-shadow: 0 0 12px rgba(99, 179, 237, 0.15);
-      font-weight: bold;
-    }
-
-    .os-name-wrapper {
-      display: flex;
-      align-items: center;
+      justify-content: center;
       gap: 10px;
+      margin-bottom: 20px;
+      z-index: 1;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      animation: fade-in 1.2s ease-out;
     }
-
     .os-icon {
       font-size: 14px;
-      width: 16px;
-      text-align: center;
+      color: #00bfff;
+      filter: drop-shadow(0 0 4px rgba(0, 191, 255, 0.5));
     }
-
-    .os-badge {
-      font-size: 8px;
-      padding: 2px 6px;
-      border-radius: 4px;
-      background: rgba(99, 179, 237, 0.2);
-      color: #63b3ed;
-      border: 1px solid rgba(99, 179, 237, 0.3);
-      letter-spacing: 0.5px;
+    .os-text {
+      font-size: 11px;
       font-weight: 600;
-      display: none;
-    }
-
-    .os-btn.recommended .os-badge {
-      display: block;
+      color: rgba(255, 255, 255, 0.85);
+      letter-spacing: 0.5px;
     }
 
     /* ── Barra de progreso ── */
@@ -241,7 +177,7 @@
     .progress-bar-bg {
       width: 100%;
       height: 3px;
-      background: rgba(255,255,255,0.05);
+      background: rgba(255, 255, 255, 0.05);
       border-radius: 2px;
       overflow: hidden;
       position: relative;
@@ -250,71 +186,75 @@
     .progress-bar-fill {
       height: 100%;
       width: 0%;
-      background: linear-gradient(90deg, #63b3ed, #9370db);
+      background: linear-gradient(90deg, #00bfff, #8a2be2);
       border-radius: 2px;
-      transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      box-shadow: 0 0 8px rgba(99, 179, 237, 0.6);
+      transition: width 0.4s cubic-bezier(0.1, 0.8, 0.25, 1);
+      box-shadow: 0 0 10px rgba(0, 191, 255, 0.8);
     }
 
     /* ── Estado de carga ── */
     .status-text {
       font-size: 10px;
-      color: rgba(99, 179, 237, 0.6);
-      letter-spacing: 1px;
+      color: rgba(0, 191, 255, 0.7);
+      letter-spacing: 1.5px;
       text-align: center;
       height: 16px;
-      transition: opacity 0.2s ease;
       width: 320px;
       z-index: 1;
-      margin-bottom: 20px;
+      margin-bottom: 25px;
+      font-weight: 500;
+      text-transform: uppercase;
+      font-family: monospace;
+      text-shadow: 0 0 5px rgba(0, 191, 255, 0.3);
     }
 
     /* ── Botón de iniciar ── */
     .start-btn {
       width: 320px;
-      background: linear-gradient(135deg, rgba(99, 179, 237, 0.2), rgba(147, 112, 219, 0.2));
-      border: 1px solid rgba(99, 179, 237, 0.4);
+      background: linear-gradient(135deg, rgba(0, 191, 255, 0.15), rgba(138, 43, 226, 0.15));
+      border: 1px solid rgba(0, 191, 255, 0.4);
       border-radius: 8px;
-      padding: 10px;
+      padding: 12px;
       color: #fff;
       font-size: 12px;
-      font-weight: 600;
-      letter-spacing: 2px;
+      font-weight: 700;
+      letter-spacing: 3px;
       cursor: pointer;
-      transition: all 0.3s ease;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
       z-index: 2;
       opacity: 0;
-      transform: translateY(10px);
+      transform: translateY(15px) scale(0.95);
       pointer-events: none;
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 8px;
-      box-shadow: 0 0 15px rgba(99, 179, 237, 0.05);
+      box-shadow: 0 0 20px rgba(0, 191, 255, 0.1);
       -webkit-app-region: no-drag;
-      margin-bottom: 15px;
+      margin-bottom: 20px;
     }
 
     .start-btn.visible {
       opacity: 1;
-      transform: translateY(0);
+      transform: translateY(0) scale(1);
       pointer-events: auto;
     }
 
     .start-btn:hover {
-      background: linear-gradient(135deg, rgba(99, 179, 237, 0.4), rgba(147, 112, 219, 0.4));
-      border-color: #63b3ed;
-      box-shadow: 0 0 20px rgba(99, 179, 237, 0.25);
+      background: linear-gradient(135deg, rgba(0, 191, 255, 0.3), rgba(138, 43, 226, 0.3));
+      border-color: #00bfff;
+      box-shadow: 0 0 25px rgba(0, 191, 255, 0.4);
+      letter-spacing: 4px;
     }
 
     .start-btn:active {
       transform: scale(0.98);
     }
 
-    /* ── Info de contexto (hora, fecha) ── */
+    /* ── Info de contexto ── */
     .context-bar {
       position: absolute;
-      bottom: 18px;
+      bottom: 20px;
       left: 0; right: 0;
       display: flex;
       align-items: center;
@@ -353,17 +293,17 @@
     }
 
     @keyframes fade-in {
-      from { opacity: 0; transform: translateY(6px); }
+      from { opacity: 0; transform: translateY(8px); }
       to   { opacity: 1; transform: translateY(0); }
     }
 
-    /* ── Fade out al terminar ── */
+    /* ── Transición Splash Out ── */
     body.done {
-      animation: splash-out 0.4s ease-in forwards;
+      animation: splash-out 0.5s cubic-bezier(0.7, 0, 0.3, 1) forwards;
     }
 
     @keyframes splash-out {
-      to { opacity: 0; transform: scale(1.02); }
+      to { opacity: 0; transform: scale(1.08) translateY(-10px); }
     }
   </style>
 </head>
@@ -372,42 +312,67 @@
   <!-- Partículas de fondo -->
   <div class="bg-particles" id="particles"></div>
 
-  <!-- Logo con anillos -->
-  <div class="outer-ring">
-    <div class="ring-spin"></div>
-    <div class="ring-spin-2"></div>
-    <div class="logo-container">
-      <img src="build/icon.png" alt="Jarvis" onerror="this.style.display='none'; document.querySelector('.logo-container').innerHTML += '<div style=\'font-size:32px; font-weight:bold; color:#63b3ed\'>J</div>'">
-    </div>
+  <!-- Reactor Arc Animado SVG -->
+  <div class="reactor-container">
+    <svg class="reactor-svg" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <!-- Glow del Fondo -->
+      <circle cx="100" cy="100" r="85" fill="url(#reactor-glow)" opacity="0.15" />
+      
+      <!-- Anillo Exterior (Segmentos) -->
+      <g class="ring-outer">
+        <circle cx="100" cy="100" r="75" stroke="#00bfff" stroke-width="1.5" stroke-opacity="0.3" stroke-dasharray="10 25" />
+        <circle cx="100" cy="100" r="71" stroke="#00bfff" stroke-width="0.8" stroke-opacity="0.2" stroke-dasharray="5 5" />
+      </g>
+      
+      <!-- Anillo Medio (Bloques rotando al revés) -->
+      <g class="ring-middle">
+        <circle cx="100" cy="100" r="58" stroke="#00bfff" stroke-width="4.5" stroke-opacity="0.5" stroke-dasharray="30 20" />
+        <circle cx="100" cy="100" r="50" stroke="#8a2be2" stroke-width="1" stroke-opacity="0.3" />
+      </g>
+
+      <!-- Rayos del Reactor / Ticks -->
+      <g stroke="#00bfff" stroke-width="1" stroke-opacity="0.4">
+        <line x1="100" y1="25" x2="100" y2="40" />
+        <line x1="100" y1="160" x2="100" y2="175" />
+        <line x1="25" y1="100" x2="40" y2="100" />
+        <line x1="160" y1="100" x2="175" y2="100" />
+        <line x1="47" y1="47" x2="58" y2="58" />
+        <line x1="142" y1="142" x2="153" y2="153" />
+        <line x1="47" y1="153" x2="58" y2="142" />
+        <line x1="142" y1="58" x2="153" y2="47" />
+      </g>
+      
+      <!-- Anillo Interno -->
+      <g class="ring-inner">
+        <circle cx="100" cy="100" r="32" stroke="#00bfff" stroke-width="2" stroke-opacity="0.7" stroke-dasharray="15 8" />
+      </g>
+
+      <!-- Núcleo central pulsante -->
+      <circle class="core-pulse" cx="100" cy="100" r="20" fill="url(#core-gradient)" />
+      
+      <!-- Definiciones de Gradientes -->
+      <defs>
+        <radialGradient id="reactor-glow" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#00bfff" />
+          <stop offset="100%" stop-color="transparent" />
+        </radialGradient>
+        <radialGradient id="core-gradient" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#ffffff" />
+          <stop offset="35%" stop-color="#00bfff" />
+          <stop offset="100%" stop-color="#8a2be2" />
+        </radialGradient>
+      </defs>
+    </svg>
   </div>
 
   <!-- Nombre -->
   <div class="brand-name">JARVIS</div>
-  <div class="brand-subtitle">Asistente Virtual — IA</div>
+  <div class="brand-subtitle">Operating System — MK.II</div>
 
-  <!-- Selector de Sistema Operativo -->
-  <div class="os-selector-container">
-    <div class="os-title">Configuración de Sistema</div>
-    <div class="os-options">
-      <button class="os-btn" id="os-win" onclick="selectOS('windows')">
-        <div class="os-name-wrapper">
-          <span class="os-icon">❖</span> Windows
-        </div>
-        <span class="os-badge" id="badge-win">RECOMENDADO</span>
-      </button>
-      <button class="os-btn" id="os-mac" onclick="selectOS('macos')">
-        <div class="os-name-wrapper">
-          <span class="os-icon">🍎</span> macOS
-        </div>
-        <span class="os-badge" id="badge-mac">RECOMENDADO</span>
-      </button>
-      <button class="os-btn" id="os-lnx" onclick="selectOS('linux')">
-        <div class="os-name-wrapper">
-          <span class="os-icon">🐧</span> Linux
-        </div>
-        <span class="os-badge" id="badge-lnx">RECOMENDADO</span>
-      </button>
-    </div>
+  <!-- Tarjeta de Detección de OS -->
+  <div class="os-card">
+    <span class="os-icon" id="os-icon-element">❖</span>
+    <span class="os-text" id="os-text-element">Verificando plataforma...</span>
   </div>
 
   <!-- Barra de progreso -->
@@ -418,14 +383,14 @@
   </div>
 
   <!-- Estado actual -->
-  <div class="status-text" id="status-text">Iniciando sistemas...</div>
+  <div class="status-text" id="status-text">Inicializando...</div>
 
-  <!-- Botón de inicio interactivo (se activa al completarse la carga) -->
+  <!-- Botón de inicio interactivo -->
   <button class="start-btn" id="start-btn" onclick="startProtocol()">
-    <span>INICIAR PROTOCOLO v2.0.0</span>
+    <span>INICIAR PROTOCOLO v2.1.0</span>
   </button>
 
-  <!-- Contexto: hora, fecha y versión en vez de sesión -->
+  <!-- Contexto -->
   <div class="context-bar" id="context-bar">
     <div class="ctx-item">
       <span class="ctx-label">Hora</span>
@@ -439,7 +404,7 @@
     <div class="ctx-sep"></div>
     <div class="ctx-item">
       <span class="ctx-label">Versión</span>
-      <span class="ctx-value" id="ctx-version">v2.0.0</span>
+      <span class="ctx-value" id="ctx-version">v2.1.0</span>
     </div>
   </div>
 
@@ -448,17 +413,17 @@
 
     // ── Partículas
     const particleContainer = document.getElementById('particles');
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 25; i++) {
       const p = document.createElement('div');
       p.className = 'particle';
       p.style.left = `${Math.random() * 100}%`;
-      p.style.animationDuration = `${5 + Math.random() * 8}s`;
-      p.style.animationDelay = `${Math.random() * 5}s`;
+      p.style.animationDuration = `${4 + Math.random() * 6}s`;
+      p.style.animationDelay = `${Math.random() * 4}s`;
       p.style.width = p.style.height = `${1 + Math.random() * 1.5}px`;
       particleContainer.appendChild(p);
     }
 
-    // ── Reloj en tiempo real
+    // ── Reloj
     function updateClock() {
       const now = new Date();
       const days = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
@@ -471,98 +436,103 @@
     updateClock();
     setInterval(updateClock, 1000);
 
-    // ── Lectura de versión dinámica
+    // ── Versión dinámica
     try {
       const pjson = require('./package.json');
       document.getElementById('ctx-version').textContent = `v${pjson.version}`;
       const btnSpan = document.querySelector('#start-btn span');
       if (btnSpan) btnSpan.textContent = `INICIAR PROTOCOLO v${pjson.version}`;
     } catch(e) {
-      document.getElementById('ctx-version').textContent = 'v2.0.0';
+      document.getElementById('ctx-version').textContent = 'v2.1.0';
     }
 
-    // ── Detección y Selección de Sistema Operativo
-    let selectedOS = 'windows';
+    // ── Detección de OS
+    let detectedOS = 'windows';
+    const osIconEl = document.getElementById('os-icon-element');
+    const osTextEl = document.getElementById('os-text-element');
 
-    function detectPlatform() {
+    function runOSDetection() {
       const platform = process.platform;
-      let detected = 'windows';
-      if (platform === 'darwin') detected = 'macos';
-      else if (platform === 'linux') detected = 'linux';
-      
-      // Aplicar recomendación
-      const btnId = `os-${detected === 'macos' ? 'mac' : detected === 'windows' ? 'win' : 'lnx'}`;
-      const btn = document.getElementById(btnId);
-      if (btn) {
-        btn.classList.add('recommended');
+      if (platform === 'darwin') {
+        detectedOS = 'macos';
+        osIconEl.textContent = '🍎';
+        osTextEl.textContent = '✓ macOS detectado';
+      } else if (platform === 'linux') {
+        detectedOS = 'linux';
+        osIconEl.textContent = '🐧';
+        osTextEl.textContent = '✓ Linux detectado';
+      } else {
+        detectedOS = 'windows';
+        osIconEl.textContent = '❖';
+        osTextEl.textContent = '✓ Windows detectado';
       }
-      
-      // Intentar recuperar preferencia guardada, sino usar recomendada
-      const saved = localStorage.getItem('jarvis_os');
-      selectOS(saved || detected);
+      localStorage.setItem('jarvis_os', detectedOS);
     }
+    runOSDetection();
 
-    function selectOS(os) {
-      selectedOS = os;
-      localStorage.setItem('jarvis_os', os);
-      
-      // Remover selección previa
-      document.querySelectorAll('.os-btn').forEach(btn => btn.classList.remove('selected'));
-      
-      // Añadir selección actual
-      const map = { windows: 'os-win', macos: 'os-mac', linux: 'os-lnx' };
-      const activeBtn = document.getElementById(map[os]);
-      if (activeBtn) {
-        activeBtn.classList.add('selected');
-      }
-    }
-
-    // Inicializar detección
-    detectPlatform();
-
-    // ── Progreso de Carga
+    // ── Textos de Carga con Personalidad & Typewriter
     const fill = document.getElementById('progress-fill');
     const statusEl = document.getElementById('status-text');
     let currentProgress = 0;
+    let typingTimer = null;
 
-    function setProgress(pct, text) {
-      currentProgress = Math.max(currentProgress, pct);
-      fill.style.width = currentProgress + '%';
-      if (text) {
-        statusEl.style.opacity = '0';
-        setTimeout(() => {
-          statusEl.textContent = text;
-          statusEl.style.opacity = '1';
-        }, 120);
+    const THEMED_MESSAGES = [
+      { maxPct: 15, msg: "Inicializando protocolos de seguridad..." },
+      { maxPct: 35, msg: "Calibrando sistemas vocales..." },
+      { maxPct: 55, msg: "Sincronizando matriz cognitiva..." },
+      { maxPct: 75, msg: "Estableciendo enlace de alta velocidad con Gemini..." },
+      { maxPct: 90, msg: "Activando núcleos de razonamiento estratégicos..." },
+      { maxPct: 98, msg: "Integrando memoria persistente local..." },
+      { maxPct: 100, msg: "Sistemas JARVIS MK.II listos." }
+    ];
+
+    function typeWriter(text, index = 0) {
+      if (index === 0) {
+        statusEl.textContent = '';
+      }
+      if (index < text.length) {
+        statusEl.textContent += text.charAt(index);
+        typingTimer = setTimeout(() => typeWriter(text, index + 1), 25);
       }
     }
 
-    // ── Recibir progreso de main process
-    ipcRenderer.on('splash-progress', (event, { pct, text }) => {
-      setProgress(pct, text);
+    function updateStatusMessage(pct) {
+      const match = THEMED_MESSAGES.find(m => pct <= m.maxPct) || THEMED_MESSAGES[THEMED_MESSAGES.length - 1];
+      if (statusEl.getAttribute('data-current') !== match.msg) {
+        statusEl.setAttribute('data-current', match.msg);
+        clearTimeout(typingTimer);
+        typeWriter(match.msg);
+      }
+    }
+
+    function setProgress(pct) {
+      currentProgress = Math.max(currentProgress, pct);
+      fill.style.width = currentProgress + '%';
+      updateStatusMessage(currentProgress);
+    }
+
+    // ── Recibir progreso del proceso principal
+    ipcRenderer.on('splash-progress', (event, { pct }) => {
+      setProgress(pct);
     });
 
     // ── Carga completada -> Mostrar botón de inicio
     ipcRenderer.on('splash-done', () => {
-      setProgress(100, 'Sistemas cargados con éxito.');
+      setProgress(100);
       setTimeout(() => {
-        // Revelar botón de inicio interactivo
         document.getElementById('start-btn').classList.add('visible');
-      }, 300);
+      }, 500);
     });
 
-    // ── Iniciar protocolo (clic en botón)
+    // ── Iniciar protocolo
     function startProtocol() {
-      // Registrar última selección antes de iniciar
-      localStorage.setItem('jarvis_os', selectedOS);
-      
       document.body.classList.add('done');
       setTimeout(() => {
         ipcRenderer.send('splash-finished');
-      }, 400);
+      }, 500);
     }
 
-    // Avisar que la ventana está lista para recibir progreso
+    // Avisar que la ventana está lista
     ipcRenderer.send('splash-ready');
   </script>
 </body>

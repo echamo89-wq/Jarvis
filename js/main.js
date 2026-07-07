@@ -19,8 +19,6 @@ import { JOS } from './engines/index.js';
 import './system/supervisor.js';
 import { initErrorReporter } from './system/error-reporter.js';
 
-store.set('userTier', 'local');
-
 store.on('change:machine', (next, prev) => {
   updateUiState(next);
   const statusIndicator = document.getElementById('chat-header-status');
@@ -425,15 +423,6 @@ async function _initApp() {
   }
   _addDropHandlers(dropZone);
 
-  // ─── Chat toggle ─────────────────────────────────────
-  document.getElementById('chat-toggle-btn')?.addEventListener('click', () => {
-    const panel = document.getElementById('chat-panel');
-    if (panel) {
-      panel.classList.toggle('visible');
-      document.getElementById('chat-toggle-btn')?.classList.toggle('active');
-    }
-  });
-
   store.set('alwaysListen', false);
 
   // ─── Right panel (diagnóstico) toggle ────────────────
@@ -445,8 +434,6 @@ async function _initApp() {
     if (btn) btn.textContent = panel.classList.contains('collapsed') ? '◀' : '▶';
   });
 
-  // ─── Export ──────────────────────────────────────────
-  document.getElementById('export-chat-btn')?.addEventListener('click', exportChat);
 
   // ─── Supervisor report ───────────────────────────────
   document.getElementById('supervisor-btn')?.addEventListener('click', () => {
@@ -497,8 +484,7 @@ async function _initApp() {
     document.getElementById('length-select').value = get('jarvis_length', 'normal');
     document.getElementById('font-size-slider').value = get('jarvis_fontsize', '2');
     document.getElementById('sfx-toggle').checked = localStorage.getItem('jarvis_sfx') !== 'false';
-    const diagToggle = document.getElementById('diag-panel-toggle');
-    if (diagToggle) diagToggle.checked = localStorage.getItem('jarvis_show_diag') !== 'false';
+
     document.getElementById('anim-toggle').checked = localStorage.getItem('jarvis_anims') !== 'false';
     document.getElementById('city-input').value = get('jarvis_city', '');
     document.getElementById('rules-textarea').value = get('jarvis_rules', '');

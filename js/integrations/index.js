@@ -1,25 +1,9 @@
-import { github } from './github.js';
 import { openweathermap } from './weather-owm.js';
-import { googleIntegration } from './google.js';
-import { gmailIntegration } from './gmail.js';
-import { googleCalendarIntegration } from './google-calendar.js';
-import { spotifyIntegration } from './spotify.js';
-import { discordIntegration } from './discord.js';
-import { slackIntegration } from './slack.js';
-import { notionIntegration } from './notion.js';
-import { telegramIntegration } from './telegram.js';
+import { github } from './github.js';
 
 const _integrations = {
-  github,
   openweathermap,
-  google: googleIntegration,
-  gmail: gmailIntegration,
-  calendar: googleCalendarIntegration,
-  spotify: spotifyIntegration,
-  discord: discordIntegration,
-  slack: slackIntegration,
-  notion: notionIntegration,
-  telegram: telegramIntegration
+  github
 };
 
 import { createLogger } from '../utils/logger.js';

@@ -20,9 +20,6 @@ async function initDatabase() {
       email TEXT UNIQUE NOT NULL,
       username TEXT NOT NULL,
       password_hash TEXT NOT NULL,
-      tier TEXT NOT NULL DEFAULT 'free',
-      daily_messages INTEGER NOT NULL DEFAULT 0,
-      last_message_date TEXT DEFAULT NULL,
       created_at INTEGER NOT NULL DEFAULT (strftime('%s','now')),
       updated_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
     );

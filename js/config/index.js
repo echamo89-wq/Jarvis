@@ -2,7 +2,7 @@ import { store } from '../state/store.js';
 import { showSystemErrorMessage } from '../chat/messages.js';
 
 // Configure your support email here, or leave empty to disable the mailto fallback
-const FEEDBACK_EMAIL = '';
+const FEEDBACK_EMAIL = 'feedback@jarvis.local';
 
 export function closeModal(modalEl, duration = 150) {
   if (!modalEl) return;

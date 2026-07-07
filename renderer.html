@@ -18,42 +18,63 @@
   <div class="auth-overlay" id="auth-overlay">
     <div class="auth-modal" id="auth-modal">
 
-      <!-- Step 1: Welcome + YouTube video -->
-      <div class="auth-step" id="auth-step-welcome">
-        <div class="auth-header">
-          <h2>Bienvenido a JARVIS</h2>
-          <p>Tu asistente personal con inteligencia artificial</p>
+      <!-- Step 1: Welcome -->
+      <div class="auth-step active" id="auth-step-welcome">
+        <!-- Stark Logo SVG Mini -->
+        <div style="width: 90px; height: 90px; margin: 0 auto 20px; filter: drop-shadow(0 0 10px rgba(0,191,255,0.5));">
+          <svg viewBox="0 0 200 200" style="width:100%; height:100%;">
+            <circle cx="100" cy="100" r="85" fill="none" stroke="#00bfff" stroke-width="1.5" stroke-opacity="0.2" />
+            <circle cx="100" cy="100" r="70" fill="none" stroke="#00bfff" stroke-width="3" stroke-dasharray="25 15" stroke-opacity="0.4" />
+            <circle cx="100" cy="100" r="50" fill="none" stroke="#8a2be2" stroke-width="1.5" stroke-opacity="0.3" />
+            <circle cx="100" cy="100" r="18" fill="#00bfff" />
+          </svg>
         </div>
 
-        <div class="auth-welcome-features">
-          <div class="auth-feature"><span>🗣</span> Voz en tiempo real</div>
-          <div class="auth-feature"><span>🖥</span> Control de Windows</div>
-          <div class="auth-feature"><span>🌐</span> Investigación web</div>
-          <div class="auth-feature"><span>📧</span> Gmail integrado</div>
-          <div class="auth-feature"><span>⚡</span> Automatización</div>
-          <div class="auth-feature"><span>🔧</span> 25+ herramientas</div>
+        <div class="auth-header">
+          <h2 style="font-family:'Orbitron', sans-serif; font-size:1.3rem; letter-spacing:3px; color:#fff; text-shadow:0 0 10px rgba(0,191,255,0.3);">JARVIS MK.II — SISTEMA LISTO</h2>
+          <p style="font-size:0.75rem; color:rgba(0,191,255,0.7); letter-spacing:1px; margin-top:4px;">Asistente cognitivo de inteligencia artificial para Windows</p>
         </div>
-        <button class="auth-btn" id="auth-welcome-btn">Comenzar</button>
+
+        <p style="font-size:0.72rem; color:var(--text-dim); line-height:1.6; text-align:center; max-width:320px; margin: 20px auto 25px;">
+          Amplifica tu productividad, automatiza tareas y controla tu sistema Windows en tiempo real mediante voz y algoritmos cognitivos avanzados.
+        </p>
+
+        <button class="auth-btn" id="auth-welcome-btn" style="box-shadow: 0 0 15px rgba(0, 191, 255, 0.3);">Comenzar configuración</button>
       </div>
 
       <!-- Step 2: Gemini API Key -->
       <div class="auth-step" id="auth-step-gemini-key">
-        <div class="auth-header">
-          <h2>API Key de Gemini</h2>
-          <p>Necesitas una clave API de Google Gemini para usar JARVIS</p>
+        <!-- SVG Key Icon -->
+        <div style="width: 60px; height: 60px; margin: 0 auto 15px; filter: drop-shadow(0 0 6px rgba(0,191,255,0.4));">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#00bfff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:100%; height:100%;">
+            <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
+          </svg>
         </div>
-        <div class="auth-field">
-          <label>Tu API Key de Gemini</label>
-          <div class="setup-key-field">
-            <input type="password" class="auth-input" id="auth-gemini-key-input" placeholder="Pega tu API key aquí" style="flex:1;">
-            <button class="setup-toggle-btn" id="auth-gemini-toggle" style="position:relative;transform:none;margin-left:8px;">👁</button>
+
+        <div class="auth-header">
+          <h2 style="font-family:'Orbitron', sans-serif; font-size:1.15rem; letter-spacing:2px; color:#fff;">API KEY DE GEMINI</h2>
+          <p style="font-size:0.7rem; color:rgba(0,191,255,0.6); margin-top:2px;">Se requiere una clave API para iniciar los motores cognitivos</p>
+        </div>
+
+        <div class="auth-field" style="margin-top:20px; text-align:left; width:100%;">
+          <label style="font-size:0.65rem; color:rgba(255,255,255,0.5); letter-spacing:1px; text-transform:uppercase; display:block; margin-bottom:6px;">Tu Clave de Gemini</label>
+          <div class="setup-key-field" style="display:flex; align-items:center;">
+            <input type="password" class="auth-input" id="auth-gemini-key-input" placeholder="Pega tu API key de Google AI Studio" style="flex:1;">
+            <button class="setup-toggle-btn" id="auth-gemini-toggle" style="position:relative; transform:none; margin-left:8px; border-radius:6px; height:34px; padding:0 8px;">👁</button>
           </div>
         </div>
-        <p style="font-size:0.65rem;color:var(--text-dim);margin:-4px 0 8px;">Consíguela en <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:var(--primary);">aistudio.google.com</a></p>
-        <div class="auth-error" id="auth-gemini-error" style="display:none"></div>
-        <div id="auth-gemini-status" style="display:none;font-size:0.7rem;padding:6px 10px;border-radius:6px;margin-bottom:8px;"></div>
-        <button class="auth-btn" id="auth-gemini-save-btn" disabled>Guardar y continuar</button>
-        <button class="auth-skip-btn" id="auth-gemini-skip-btn" style="margin-top:4px;">Probar después en configuración</button>
+        <p style="font-size:0.65rem; color:var(--text-dim); margin: 6px 0 16px; text-align:left;">Consíguela gratis en <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:#00bfff; text-decoration:none; font-weight:600;">aistudio.google.com</a></p>
+
+        <div class="auth-error" id="auth-gemini-error" style="display:none; font-size:0.65rem; padding:8px; border-radius:6px; border:1px solid rgba(255,59,48,0.3); background:rgba(255,59,48,0.08); color:#ff453a; margin-bottom:12px; text-align:left;"></div>
+        
+        <!-- Loading spinner placeholder -->
+        <div id="auth-gemini-loading" style="display:none; align-items:center; justify-content:center; gap:8px; margin-bottom:15px;">
+          <div style="width: 16px; height: 16px; border: 2px solid rgba(0,191,255,0.2); border-top-color: #00bfff; border-radius:50%; animation: spin 0.8s linear infinite;"></div>
+          <span style="font-size: 0.65rem; color: #00bfff; font-family:monospace; letter-spacing:1px;">VALIDANDO CLAVE...</span>
+        </div>
+
+        <button class="auth-btn" id="auth-gemini-save-btn" disabled style="box-shadow: 0 0 10px rgba(0,191,255,0.15);">Guardar y continuar</button>
+        <button class="auth-skip-btn" id="auth-gemini-skip-btn" style="margin-top:8px; background:transparent; border:none; color:rgba(255,255,255,0.35); font-size:0.65rem; cursor:pointer; text-decoration:underline;">Saltar e iniciar modo demo</button>
       </div>
 
     </div>
