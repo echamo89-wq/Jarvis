@@ -895,28 +895,27 @@ ipcMain.handle('ws-connect', async (event) => {
 
   try {
     const url = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${apiKey}`;
-    geminiWs = new WebSocket(url);
+    const ws = new WebSocket(url);
+    geminiWs = ws;
 
-    geminiWs.on('open', () => {
+    ws.on('open', () => {
       console.log('[MAIN] Gemini WS connected');
       // Disable Nagle's algorithm to prioritize real-time packet delivery (lowers bidi audio/text latency)
-      if (geminiWs._socket) {
-        try { geminiWs._socket.setNoDelay(true); } catch (e) {
-          console.warn('[MAIN] No se pudo establecer setNoDelay en socket:', e.message);
-        }
+      try { if (ws._socket) ws._socket.setNoDelay(true); } catch (e) {
+        console.warn('[MAIN] No se pudo establecer setNoDelay en socket:', e.message);
       }
       if (win && !win.isDestroyed()) {
         win.webContents.send('ws-status', { type: 'open', event: { type: 'open' } });
       }
     });
 
-    geminiWs.on('message', (data) => {
+    ws.on('message', (data) => {
       if (win && !win.isDestroyed()) {
         win.webContents.send('ws-message', data.toString());
       }
     });
 
-    geminiWs.on('unexpected-response', (req, res) => {
+    ws.on('unexpected-response', (req, res) => {
       const status = res.statusCode || 'unknown';
       const text = `Handshake fallido: HTTP ${status}`;
       console.error(`[MAIN] Gemini WS unexpected-response: ${text}`);
@@ -925,20 +924,20 @@ ipcMain.handle('ws-connect', async (event) => {
       }
     });
 
-    geminiWs.on('error', (err) => {
+    ws.on('error', (err) => {
       if (win && !win.isDestroyed()) {
         win.webContents.send('ws-status', { type: 'error', event: { type: 'error', message: err.message || '' } });
       }
     });
 
-    geminiWs.on('close', (code, reason) => {
+    ws.on('close', (code, reason) => {
       if (win && !win.isDestroyed()) {
         win.webContents.send('ws-status', {
           type: 'close',
           event: { code: code, reason: reason || '', wasClean: code === 1000, type: 'close' }
         });
       }
-      geminiWs = null;
+      if (geminiWs === ws) geminiWs = null;
     });
 
     return { success: true };
