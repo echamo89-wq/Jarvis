@@ -113,7 +113,7 @@ function _cleanupWsProxy() {
 let _wsConnectTimeout = null;
 let _wsMutex = false;
 
-export function connectWebSocket() {
+export async function connectWebSocket() {
   if (_wsMutex) { _log('warn', 'WS connect ya en progreso — ignorando llamada duplicada'); return; }
   _wsMutex = true;
   const cleanup = () => { _wsMutex = false; };
@@ -134,7 +134,19 @@ export function connectWebSocket() {
   updateDiagnostics('WS', 'CONECTANDO...');
 
   // Verify API key before attempting connection
-  const apiKey = localStorage.getItem('jarvis_gemini_api_key');
+  let apiKey = localStorage.getItem('jarvis_gemini_api_key');
+  if (!apiKey) {
+    // Fallback: buscar en almacenamiento seguro (Windows Credential Manager)
+    try {
+      if (window.electronAPI?.secureCredentialGet) {
+        const savedKey = await window.electronAPI.secureCredentialGet('GEMINI_API_KEY');
+        if (savedKey && savedKey.trim().length >= 10) {
+          apiKey = savedKey.trim();
+          localStorage.setItem('jarvis_gemini_api_key', apiKey);
+        }
+      }
+    } catch (e) {}
+  }
   if (!apiKey) {
     _log('warn', 'WS: no hay API key — abortando conexión');
     updateDiagnostics('WS', 'SIN KEY');

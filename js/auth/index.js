@@ -19,8 +19,21 @@ export async function checkAuth() {
     if (currentVersion && storedVersion !== currentVersion) {
       localStorage.removeItem(ONBOARDED_KEY);
       localStorage.removeItem(CREATOR_KEY);
-      localStorage.removeItem('jarvis_gemini_api_key');
       localStorage.setItem(VERSION_KEY, currentVersion);
+      // Reintentar cargar key desde almacenamiento seguro antes de pedirla otra vez
+      try {
+        const savedKey = await window.electronAPI?.secureCredentialGet('GEMINI_API_KEY');
+        if (savedKey && savedKey.trim().length >= 10) {
+          localStorage.setItem('jarvis_gemini_api_key', savedKey.trim());
+          localStorage.setItem(CREATOR_KEY, 'true');
+          localStorage.setItem(ONBOARDED_KEY, 'true');
+          _hideAuth();
+          if (_authCallback) {
+            _authCallback({ authed: true, user: { tier: 'local', email: 'local@jarvis.local', username: 'Modo Local' } });
+          }
+          return true;
+        }
+      } catch (e) { /* secure storage no disponible — pedir key manual */ }
       _showAuth();
       _showStep('welcome');
       return false;
@@ -127,12 +140,14 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   if (keyInput) {
-    // Si la clave ya existe en el almacenamiento seguro de Windows, la rellenamos automáticamente
+    // Si la clave ya existe en el almacenamiento seguro de Windows, completamos onboarding automáticamente
     if (window.electronAPI?.secureCredentialGet) {
       window.electronAPI.secureCredentialGet('GEMINI_API_KEY').then(savedKey => {
         if (savedKey && savedKey.trim().length >= 10) {
-          keyInput.value = savedKey.trim();
-          if (saveBtn) saveBtn.disabled = false;
+          if (localStorage.getItem(ONBOARDED_KEY) !== 'true') {
+            localStorage.setItem('jarvis_gemini_api_key', savedKey.trim());
+            _completeOnboarding();
+          }
         }
       }).catch(() => {});
     }
