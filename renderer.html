@@ -98,6 +98,7 @@
         <button id="docs-btn" class="top-btn" title="Investigaciones">&#128196;</button>
         <button id="new-chat-btn" class="top-btn" title="Nuevo chat">+</button>
         <button id="integrations-btn" class="top-btn" title="Integraciones">&#9678;</button>
+        <button id="export-chat-btn" class="top-btn" title="Exportar conversacion">&#8600;</button>
         <button id="config-trigger" class="top-btn" title="Configuracion">&#9881;</button>
         <button id="reconnect-btn" class="top-btn" title="Reconectar">&#8635;</button>
         <button id="minimize-btn" class="window-control-btn" title="Minimizar">_</button>
@@ -403,6 +404,15 @@
           </div>
         </div>
         <div class="tab-pane" id="tab-advanced">
+          <div class="config-field">
+            <label>Calidad grafica</label>
+            <select id="graphics-select" class="config-select">
+              <option value="low">Baja</option>
+              <option value="medium">Media</option>
+              <option value="high">Alta</option>
+              <option value="ultra">Ultra</option>
+            </select>
+          </div>
           <div class="config-field" style="flex-direction:row;align-items:center;gap:8px;">
             <input type="checkbox" id="anim-toggle">
             <label>Animaciones</label>

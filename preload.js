@@ -60,5 +60,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   captureScreenshot: () => ipcRenderer.invoke('capture-screenshot'),
 
   // ─── Developer / Reset ────────────────────────────────────
-  clearStorage: () => ipcRenderer.invoke('clear-storage')
+  clearStorage: () => ipcRenderer.invoke('clear-storage'),
+
+  // ─── Global Hotkey (toggle mic desde system tray / atajo) ──
+  onGlobalToggleMic: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on('global-toggle-mic', handler);
+    return () => ipcRenderer.removeListener('global-toggle-mic', handler);
+  },
+
+  // ─── Export Chat ───────────────────────────────────────────
+  saveFileDialog: (options) => ipcRenderer.invoke('save-file-dialog', options),
+
+  // ─── Screenshot base64 (para tool de análisis) ────────────
+  captureScreenshotBase64: () => ipcRenderer.invoke('capture-screenshot-base64')
 });

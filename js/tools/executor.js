@@ -53,7 +53,8 @@ const _toolLabels = {
   system_stats: 'Analizando sistema',
   find_files: 'Buscando archivos',
   remember_user_info: 'Recordando información',
-  deep_research: 'Investigando a fondo'
+  deep_research: 'Investigando a fondo',
+  take_screenshot: 'Capturando pantalla'
 };
 
 function _getToolDescription(call) {
@@ -238,6 +239,17 @@ async function _dispatchTool(call, store, sessionContext) {
     const result = await handleDeepResearch(call);
     if (result.success) _trackCommand(`deep_research: ${call.args.topic}`);
     return result;
+  } else if (call.name === 'take_screenshot') {
+    _log('info', 'Capturing screenshot for visual analysis');
+    try {
+      const result = await window.electronAPI?.captureScreenshotBase64();
+      if (result?.success) {
+        return { success: true, output: 'Screenshot captured successfully.', _screenshotData: result.data };
+      }
+      return { success: false, output: result?.error || 'Failed to capture screenshot' };
+    } catch (e) {
+      return { success: false, output: `Screenshot error: ${e.message}` };
+    }
   } else if (call.name.startsWith('github_') || call.name.startsWith('get_weather_') || call.name.startsWith('gmail_')) {
     const { executeIntegrationTool } = await import('../integrations/index.js');
     const result = await executeIntegrationTool(call.name, call.args || {});
@@ -317,6 +329,7 @@ export async function executeToolCall(calls) {
       responses.push({
         id: call.id,
         name: call.name,
+        _screenshotData: result._screenshotData,
         response: {
           success: result.success,
           result: result.success
@@ -353,4 +366,25 @@ export async function executeToolCall(calls) {
   store.set('isExecutingTool', false);
   const ws = window.ws;
   if (ws) ws.send(JSON.stringify({ toolResponse: { functionResponses: responses } }));
+
+  // If any tool was take_screenshot, send the image to Gemini as a user turn
+  const screenshotResult = responses.find(r => r._screenshotData);
+  if (screenshotResult?._screenshotData && ws) {
+    setTimeout(() => {
+      ws.send(JSON.stringify({
+        clientContent: {
+          turns: [{
+            role: 'user',
+            parts: [{
+              inlineData: {
+                mimeType: 'image/png',
+                data: screenshotResult._screenshotData
+              }
+            }]
+          }],
+          turnComplete: true
+        }
+      }));
+    }, 500);
+  }
 }

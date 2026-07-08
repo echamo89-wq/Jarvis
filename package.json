@@ -1,6 +1,6 @@
 {
   "name": "jarvis",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "JARVIS - AI Personal Assistant for Windows with voice, automation, and deep system integration",
   "main": "main.js",
   "scripts": {
@@ -33,7 +33,11 @@
       "!dist",
       "!server/node_modules",
       "!server/data/jarvis.db",
-      "!.git"
+      "!.git",
+      "!.env",
+      "!.env.example",
+      "!server/.env",
+      "!server/.env.example"
     ],
     "extraMetadata": {
       "main": "main.js"

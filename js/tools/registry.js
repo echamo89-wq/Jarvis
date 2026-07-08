@@ -252,6 +252,19 @@ Time formats: "in 30 minutes", "in 2 hours", "at 15:30", "tomorrow at 9:00", "20
         format: { type: 'string', description: '"video" (best quality mp4, default), "audio" (mp3 audio only), "custom" (specify format_code).' },
         format_code: { type: 'string', description: 'yt-dlp format code for custom downloads. Only used when format="custom".' }
       }, required: ['url'] }
+    },
+    {
+      name: 'take_screenshot',
+      description: `Captures a screenshot of the user's current screen and sends it to you for visual analysis.
+WHEN TO USE:
+• User asks "what's on my screen", "look at this", "what do you see", "analyze this image"
+• User needs help with something visual on their screen
+• User asks you to read something from their screen
+• Any visual question about the current desktop or application
+OUTPUT: You will receive the screenshot as an image. Describe what you see in detail.`,
+      parameters: { type: 'object', properties: {
+        description: { type: 'string', description: 'What the user wants you to look at or analyze on their screen. Be specific.' }
+      }, required: ['description'] }
     }
   ];
 }

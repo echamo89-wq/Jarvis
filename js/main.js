@@ -513,6 +513,35 @@ async function _initApp() {
     }
   });
 
+  // ─── Export chat ─────────────────────────────────────
+  document.getElementById('export-chat-btn')?.addEventListener('click', async () => {
+    const history = store.get('conversationHistory') || [];
+    if (history.length === 0) {
+      showSystemErrorMessage('No hay conversación para exportar.');
+      return;
+    }
+    let md = `# Conversación con JARVIS\n\n_Fecha: ${new Date().toLocaleString('es')}_\n\n---\n\n`;
+    for (const msg of history) {
+      const role = msg.role === 'user' ? '**Tú**' : '**JARVIS**';
+      md += `### ${role}\n${msg.content}\n\n---\n\n`;
+    }
+    const result = await window.electronAPI?.saveFileDialog({
+      defaultName: `jarvis-conversacion-${Date.now()}.md`,
+      content: md
+    });
+    if (result?.success) {
+      showSystemErrorMessage(`✓ Conversación exportada a:\n${result.filePath}`);
+    } else if (result && !result.canceled) {
+      showSystemErrorMessage(`✗ Error al exportar: ${result.error}`);
+    }
+  });
+
+  // ─── Global hotkey: toggle mic ───────────────────────
+  window.electronAPI?.onGlobalToggleMic(() => {
+    const micBtn = document.getElementById('mic-btn');
+    if (micBtn) micBtn.click();
+  });
+
   // ─── Clear chat ──────────────────────────────────────
   document.getElementById('clear-btn')?.addEventListener('click', () => {
     document.getElementById('clear-confirm-span').style.display = 'inline-flex';

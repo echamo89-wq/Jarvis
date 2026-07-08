@@ -2,42 +2,66 @@ let _authCallback = null;
 
 const ONBOARDED_KEY = 'jarvis_onboarded';
 const CREATOR_KEY = 'jarvis_creator_mode';
+const VERSION_KEY = 'jarvis_app_version';
 
 export function onAuth(callback) {
   _authCallback = callback;
 }
 
 export async function checkAuth() {
-  const creatorMode = localStorage.getItem(CREATOR_KEY) === 'true';
-  const onboarded = localStorage.getItem(ONBOARDED_KEY) === 'true';
+  try {
+    let currentVersion = null;
+    try {
+      currentVersion = window.electronAPI?.getAppVersion ? await window.electronAPI.getAppVersion() : null;
+    } catch (e) {}
+    const storedVersion = localStorage.getItem(VERSION_KEY);
 
-  if (!onboarded) {
+    if (currentVersion && storedVersion !== currentVersion) {
+      localStorage.removeItem(ONBOARDED_KEY);
+      localStorage.removeItem(CREATOR_KEY);
+      localStorage.removeItem('jarvis_gemini_api_key');
+      localStorage.setItem(VERSION_KEY, currentVersion);
+      _showAuth();
+      _showStep('welcome');
+      return false;
+    }
+
+    const creatorMode = localStorage.getItem(CREATOR_KEY) === 'true';
+    const onboarded = localStorage.getItem(ONBOARDED_KEY) === 'true';
+
+    if (!onboarded) {
+      _showAuth();
+      _showStep('welcome');
+      return false;
+    }
+
+    if (!creatorMode) {
+      _showAuth();
+      _showStep('gemini-key');
+      return false;
+    }
+
+    const apiCheck = window.electronAPI?.checkApiKey ? await window.electronAPI.checkApiKey() : null;
+    if (!apiCheck?.configured) {
+      localStorage.removeItem(CREATOR_KEY);
+      localStorage.removeItem(ONBOARDED_KEY);
+      localStorage.removeItem('jarvis_gemini_api_key');
+      _showAuth();
+      _showStep('welcome');
+      return false;
+    }
+
+    _hideAuth();
+    if (_authCallback) {
+      _authCallback({ authed: true, user: { tier: 'local', email: 'local@jarvis.local', username: 'Modo Local' } });
+    }
+    return true;
+  } catch (e) {
+    console.error('[AUTH] Error en checkAuth:', e);
     _showAuth();
     _showStep('welcome');
     return false;
   }
-
-  if (!creatorMode) {
-    _showAuth();
-    _showStep('gemini-key');
-    return false;
-  }
-
-  const apiCheck = window.electronAPI?.checkApiKey ? await window.electronAPI.checkApiKey() : null;
-  if (!apiCheck?.configured) {
-    localStorage.removeItem(CREATOR_KEY);
-    localStorage.removeItem(ONBOARDED_KEY);
-    localStorage.removeItem('jarvis_gemini_api_key');
-    _showAuth();
-    _showStep('welcome');
-    return false;
-  }
-
-  _hideAuth();
-  if (_authCallback) {
-    _authCallback({ authed: true, user: { tier: 'local', email: 'local@jarvis.local', username: 'Modo Local' } });
-  }
-  return true;
 }
 
 function _showAuth() {
@@ -72,6 +96,9 @@ function _showStep(stepId) {
 function _completeOnboarding() {
   localStorage.setItem(ONBOARDED_KEY, 'true');
   localStorage.setItem(CREATOR_KEY, 'true');
+  if (window.electronAPI?.getAppVersion) {
+    window.electronAPI.getAppVersion().then(v => localStorage.setItem(VERSION_KEY, v)).catch(() => {});
+  }
   _hideAuth();
   if (_authCallback) {
     _authCallback({ authed: true, user: { tier: 'local', email: 'local@jarvis.local', username: 'Modo Local' } });

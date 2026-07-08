@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, Notification, net } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, Notification, net, globalShortcut, Tray, Menu, nativeImage, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn, exec, execFile } = require('child_process');
@@ -320,10 +320,59 @@ ipcMain.on('splash-finished', () => {
   }
 });
 
+let _tray = null;
+
+function _createTray() {
+  try {
+    const iconPath = path.join(__dirname, 'build', 'icon.png');
+    let trayIcon;
+    if (fs.existsSync(iconPath)) {
+      trayIcon = nativeImage.createFromPath(iconPath).resize({ width: 32, height: 32 });
+    } else {
+      trayIcon = nativeImage.createEmpty();
+    }
+    _tray = new Tray(trayIcon);
+    _tray.setToolTip('JARVIS');
+    _tray.setContextMenu(Menu.buildFromTemplate([
+      { label: 'Abrir JARVIS', click: () => {
+        if (_mainWindow && !_mainWindow.isDestroyed()) { _mainWindow.show(); _mainWindow.focus(); }
+      }},
+      { label: 'Activar micrófono', click: () => {
+        if (_mainWindow && !_mainWindow.isDestroyed()) _mainWindow.webContents.send('global-toggle-mic');
+      }},
+      { type: 'separator' },
+      { label: 'Salir', click: () => { app.isQuitting = true; app.quit(); } }
+    ]));
+    _tray.on('double-click', () => {
+      if (_mainWindow && !_mainWindow.isDestroyed()) { _mainWindow.show(); _mainWindow.focus(); }
+    });
+  } catch (e) {
+    console.error('[MAIN] Error creando bandeja:', e.message);
+  }
+}
+
+function _registerGlobalHotkeys() {
+  try {
+    globalShortcut.register('CommandOrControl+Shift+J', () => {
+      if (_mainWindow && !_mainWindow.isDestroyed()) {
+        _mainWindow.show();
+        _mainWindow.focus();
+        _mainWindow.webContents.send('global-toggle-mic');
+      }
+    });
+  } catch (e) {
+    console.error('[MAIN] Error registrando hotkey:', e.message);
+  }
+}
+
+app.isQuitting = false;
+
 app.whenReady().then(() => {
   _startBackendServer();
   createSplashWindow();
   createMainWindow();
+  _createTray();
+  _registerGlobalHotkeys();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -347,7 +396,15 @@ function _cleanupProcesses() {
   _childProcesses = [];
 }
 
-app.on('before-quit', _cleanupProcesses);
+app.on('before-quit', () => {
+  app.isQuitting = true;
+  _cleanupProcesses();
+});
+
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll();
+  if (_tray) { _tray.destroy(); _tray = null; }
+});
 
 app.on('window-all-closed', () => {
   _cleanupProcesses();
@@ -362,7 +419,11 @@ ipcMain.on('window-control', (event, action) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   if (!win) return;
   if (action === 'close') {
-    win.close();
+    if (app.isQuitting) {
+      win.close();
+    } else {
+      win.hide();
+    }
   } else if (action === 'minimize') {
     win.minimize();
   }
@@ -962,6 +1023,39 @@ ipcMain.handle('send-feedback-email', async (event, { message, user, version, fi
       req.write(body);
       req.end();
     });
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+// ─── Export Chat ──────────────────────────────────────────────────────
+ipcMain.handle('save-file-dialog', async (event, { defaultName, content }) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win) return { success: false, error: 'No window' };
+  try {
+    const result = await dialog.showSaveDialog(win, {
+      defaultPath: defaultName || 'conversation.md',
+      filters: [
+        { name: 'Markdown (.md)', extensions: ['md'] },
+        { name: 'Texto plano (.txt)', extensions: ['txt'] },
+        { name: 'Todos los archivos', extensions: ['*'] }
+      ]
+    });
+    if (result.canceled) return { success: false, canceled: true };
+    fs.writeFileSync(result.filePath, content, 'utf8');
+    return { success: true, filePath: result.filePath };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+// ─── Screenshot base64 (para tool de análisis visual) ─────────────────
+ipcMain.handle('capture-screenshot-base64', async (event) => {
+  try {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win) return { success: false, error: 'No window' };
+    const image = await win.webContents.capturePage();
+    return { success: true, data: image.toPNG().toString('base64') };
   } catch (e) {
     return { success: false, error: e.message };
   }

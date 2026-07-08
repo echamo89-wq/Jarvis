@@ -50,7 +50,8 @@ const _DEFAULTS = {
   jarvis_anims: 'true',
   jarvis_vad_threshold: '100',
   jarvis_theme: 'dark',
-  jarvis_always_on: 'false'
+  jarvis_always_on: 'false',
+  jarvis_graphics: 'high'
 };
 
 export async function loadConfig() {
@@ -81,6 +82,7 @@ export async function loadConfig() {
   applyTheme(theme);
   applyFontSize(parseInt(localStorage.getItem('jarvis_fontsize') || '2'));
   applyAnimations(localStorage.getItem('jarvis_anims') !== 'false');
+  applyGraphicsQuality(localStorage.getItem('jarvis_graphics') || 'high');
   store.set('speechEnergyThreshold', parseInt(localStorage.getItem('jarvis_vad_threshold') || '300'));
   const alwaysOn = localStorage.getItem('jarvis_always_on') === 'true';
   document.getElementById('always-on-toggle').checked = alwaysOn;
@@ -120,7 +122,8 @@ export async function saveConfig() {
     rules: document.getElementById('rules-textarea')?.value.trim() || '',
     context: document.getElementById('context-textarea')?.value.trim() || '',
     vadThreshold: document.getElementById('vad-slider')?.value || '300',
-    alwaysOn: document.getElementById('always-on-toggle')?.checked ?? false
+    alwaysOn: document.getElementById('always-on-toggle')?.checked ?? false,
+    graphics: document.getElementById('graphics-select')?.value || 'high'
   };
 
   const old = {
@@ -154,6 +157,7 @@ export async function saveConfig() {
   localStorage.setItem('jarvis_context', fields.context);
   localStorage.setItem('jarvis_vad_threshold', fields.vadThreshold);
   localStorage.setItem('jarvis_always_on', fields.alwaysOn);
+  localStorage.setItem('jarvis_graphics', fields.graphics);
 
   updateUserBadge();
 
@@ -178,6 +182,7 @@ export async function saveConfig() {
 
   applyFontSize(parseInt(fields.fontSize));
   applyAnimations(fields.anims);
+  applyGraphicsQuality(fields.graphics);
 
   closeModal(document.getElementById('config-modal'));
   return needsReconnect;
@@ -209,6 +214,36 @@ export function applyFontSize(val) {
 
 export function applyAnimations(enabled) {
   document.body.classList.toggle('disable-animations', !enabled);
+}
+
+const GRAPHICS_PARTICLES = { low: 0, medium: 12, high: 35, ultra: 70 };
+const GRAPHICS_CLASSES = { low: 'gfx-low', medium: 'gfx-medium', high: 'gfx-high', ultra: 'gfx-ultra' };
+
+export function applyGraphicsQuality(level) {
+  const valid = GRAPHICS_PARTICLES[level] !== undefined ? level : 'high';
+  localStorage.setItem('jarvis_graphics', valid);
+  Object.values(GRAPHICS_CLASSES).forEach(c => document.body.classList.remove(c));
+  document.body.classList.add(GRAPHICS_CLASSES[valid]);
+  store.set('graphicsQuality', valid);
+  const particleCount = GRAPHICS_PARTICLES[valid];
+  const container = document.getElementById('main-bg-particles');
+  if (container) {
+    container.innerHTML = '';
+    for (let i = 0; i < particleCount; i++) {
+      const p = document.createElement('div');
+      p.className = 'particle';
+      p.style.left = `${Math.random() * 100}%`;
+      p.style.animationDuration = `${10 + Math.random() * 15}s`;
+      p.style.animationDelay = `${Math.random() * 10}s`;
+      p.style.width = p.style.height = `${1 + Math.random() * (valid === 'ultra' ? 3 : 2)}px`;
+      container.appendChild(p);
+    }
+  }
+  if (valid === 'low') {
+    document.body.classList.add('disable-animations');
+  } else if (localStorage.getItem('jarvis_anims') !== 'false') {
+    document.body.classList.remove('disable-animations');
+  }
 }
 
 export { buildSystemInstruction } from './system-instruction.js';
@@ -431,6 +466,12 @@ document.addEventListener('DOMContentLoaded', () => {
         feedbackBtn.textContent = 'Enviar Reporte';
       }
     });
+  }
+
+  // ── Graphics quality init ──────────────────────────────
+  const graphicsSelect = document.getElementById('graphics-select');
+  if (graphicsSelect) {
+    graphicsSelect.value = localStorage.getItem('jarvis_graphics') || 'high';
   }
 
   // ── State sync: bubble + reactor
