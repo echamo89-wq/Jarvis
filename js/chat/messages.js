@@ -355,12 +355,10 @@ export function showInstantGreeting() {
 export function sendInitialGreetingRequest() {
   const addressName = _getUserAddress();
   store.set('waitingForGreetingToFinish', true);
-  const greetMsg = {
-    clientContent: {
-      turns: [{ role: 'user', parts: [{ text: `Di SOLO el saludo, máximo 4 palabras, en español, a: '${addressName}'. NO expliques, NO pienses en voz alta, NO uses comillas.` }] }],
-      turnComplete: true
-    }
-  };
+  const history = store.get('conversationHistory');
+  const turns = (history || []).slice(-20).map(e => ({ role: e.role === 'user' ? 'user' : 'model', parts: [{ text: e.content }] }));
+  turns.push({ role: 'user', parts: [{ text: `Di SOLO el saludo, máximo 4 palabras, en español, a: '${addressName}'. NO expliques, NO pienses en voz alta, NO uses comillas.` }] });
+  const greetMsg = { clientContent: { turns, turnComplete: true } };
   const ws = window.ws;
   if (ws) ws.send(JSON.stringify(greetMsg));
 }
@@ -566,8 +564,11 @@ export function sendTextMessage() {
       if (!ws || ws.readyState !== 1) { showSystemErrorMessage('No se pudo reconectar.'); return; }
     }
 
+    const history = store.get('conversationHistory');
+    const allTurns = (history || []).slice(-40).map(e => ({ role: e.role === 'user' ? 'user' : 'model', parts: [{ text: e.content }] }));
+    allTurns.push({ role: 'user', parts: [{ text: '[Texto] ' + displayText }] });
     ws.send(JSON.stringify({
-      clientContent: { turns: [{ role: 'user', parts: [{ text: '[Texto] ' + displayText }] }], turnComplete: true }
+      clientContent: { turns: allTurns, turnComplete: true }
     }));
     _log('info', 'Mensaje de texto enviado');
   });

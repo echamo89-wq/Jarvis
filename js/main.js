@@ -345,14 +345,13 @@ async function _initApp() {
           appendUserMessage(msgLabel, msgLabel);
           const ws = window.ws;
           if (ws?.readyState === 1) {
-            ws.send(JSON.stringify({
-              clientContent: {
-                turns: [{ role: 'user', parts: [
-                  { text: `Analiza esta imagen adjuntada: "${file.name}". Describe su contenido y responde a lo que sea relevante.` },
-                  { inlineData: { mimeType: file.type, data: b64 } }
-                ]}],
-                turnComplete: true
-              }
+            const turns = (store.get('conversationHistory') || []).slice(-40).map(e => ({ role: e.role === 'user' ? 'user' : 'model', parts: [{ text: e.content }] }));
+          turns.push({ role: 'user', parts: [
+            { text: `Analiza esta imagen adjuntada: "${file.name}". Describe su contenido y responde a lo que sea relevante.` },
+            { inlineData: { mimeType: file.type, data: b64 } }
+          ]});
+          ws.send(JSON.stringify({
+              clientContent: { turns, turnComplete: true }
             }));
           }
         } else if (isAudio) {
@@ -384,8 +383,10 @@ async function _initApp() {
         if (wsContent) {
           const ws = window.ws;
           if (ws?.readyState === 1) {
+            const turns = (store.get('conversationHistory') || []).slice(-40).map(e => ({ role: e.role === 'user' ? 'user' : 'model', parts: [{ text: e.content }] }));
+            turns.push({ role: 'user', parts: [{ text: wsContent }] });
             ws.send(JSON.stringify({
-              clientContent: { turns: [{ role: 'user', parts: [{ text: wsContent }] }], turnComplete: true }
+              clientContent: { turns, turnComplete: true }
             }));
             const store2 = (await import('./state/store.js')).store;
             store2.set('startTime', Date.now());

@@ -371,19 +371,11 @@ export async function executeToolCall(calls) {
   const screenshotResult = responses.find(r => r._screenshotData);
   if (screenshotResult?._screenshotData && ws) {
     setTimeout(() => {
+      const history = store.get('conversationHistory') || [];
+      const turns = history.slice(-40).map(e => ({ role: e.role === 'user' ? 'user' : 'model', parts: [{ text: e.content }] }));
+      turns.push({ role: 'user', parts: [{ inlineData: { mimeType: 'image/png', data: screenshotResult._screenshotData } }] });
       ws.send(JSON.stringify({
-        clientContent: {
-          turns: [{
-            role: 'user',
-            parts: [{
-              inlineData: {
-                mimeType: 'image/png',
-                data: screenshotResult._screenshotData
-              }
-            }]
-          }],
-          turnComplete: true
-        }
+        clientContent: { turns, turnComplete: true }
       }));
     }, 500);
   }

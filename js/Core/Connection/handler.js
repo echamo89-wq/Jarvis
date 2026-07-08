@@ -172,6 +172,8 @@ function _handleServerContent(content) {
     _pendingTranscript = fullAccum;
 
     // Instant display — no typewriter so text tracks audio in real-time
+    // Skip if modelTurn already showed the text (prevents double display)
+    if (store.get('_turnTextShown')) return;
     const cleanedFull = _cleanModelText(fullAccum);
     if (cleanedFull) {
       hideChatStatus();
@@ -260,9 +262,6 @@ function _handleServerContent(content) {
         const clean = greetingText.replace(/<think>[\s\S]*?<\/think>/gi, '').replace(/[*#_`]/g, '').trim();
         if (clean && clean.length > 3) {
           localStorage.setItem('jarvis_cached_greeting', clean);
-          if (store.get('focusMode') && !store.get('isJarvisMuted')) {
-            window.electronAPI?.speakLocal(clean).catch(() => {});
-          }
         }
       }
       const instantEl = _qs('.message.jarvis.instant-greeting');

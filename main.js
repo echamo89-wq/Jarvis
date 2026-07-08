@@ -367,6 +367,21 @@ function _registerGlobalHotkeys() {
 
 app.isQuitting = false;
 
+const gotSingleLock = app.requestSingleInstanceLock();
+if (!gotSingleLock) {
+  console.warn('[MAIN] Ya hay una instancia de JARVIS en ejecución. Saliendo.');
+  app.quit();
+  return;
+}
+
+app.on('second-instance', () => {
+  if (_mainWindow && !_mainWindow.isDestroyed()) {
+    if (_mainWindow.isMinimized()) _mainWindow.restore();
+    _mainWindow.show();
+    _mainWindow.focus();
+  }
+});
+
 app.whenReady().then(() => {
   _startBackendServer();
   createSplashWindow();
