@@ -4,7 +4,7 @@ import { connectWebSocket } from '../Core/Connection/manager.js';
 import { ensureMicrophoneActive, restartMicrophone, isMicPipelineHealthySync } from '../audio/recorder.js';
 
 const GUARD_INTERVAL_MS = 8000;
-const WS_STALE_MS = 120000;
+const WS_STALE_MS = 600000;
 const MIC_RESTART_MAX = 3;
 const MIC_RESTART_WINDOW_MS = 300000;
 
@@ -82,23 +82,14 @@ async function _guardWebSocket() {
   const readyState = window.ws?.readyState ?? 3;
   const connected = readyState === 1;
 
-  if (connected) {
+    if (connected) {
     if (_wsFailCount > 0) {
       _log('info', 'WebSocket recuperado');
       _recordError('ws_recovered', `Reconectado tras ${_wsFailCount} fallos`);
     }
     _wsFailCount = 0;
     _wsRecovering = false;
-    const lastMsg = store.get('lastWsMessageTime') || 0;
-    const state = store.getState();
-    const isInteracting = state === STATE.SPEAKING || state === STATE.WORKING;
-    if (!isInteracting && lastMsg > 0 && (Date.now() - lastMsg) > WS_STALE_MS) {
-      _log('warn', 'WebSocket inactivo — forzando reconexión');
-      _recordError('ws_stale', `Sin mensajes por ${(Date.now() - lastMsg) / 1000}s`);
-      store.set('isReconnectingIntentional', true);
-      try { window.ws?.close(); } catch (e) {}
-      connectWebSocket();
-    }
+    // Si el WS esta sano y conectado, no lo toques — Gemini maneja su propio timeout
     return;
   }
 
