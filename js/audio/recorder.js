@@ -120,6 +120,7 @@ async function _startRecording() {
     const ws = window.ws;
     if (!ws || ws.readyState !== 1) return;
     if (store.get('_reconnectCooldown')) return;
+    if (store.get('_pausePCM')) return;
 
     // Enviar PCM incluso durante playback para permitir interrupción por VAD
     // Solo bloqueamos 200ms tras el fin del playback para evitar eco residual

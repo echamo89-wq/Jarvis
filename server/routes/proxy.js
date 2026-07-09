@@ -1,8 +1,27 @@
 const express = require('express');
+const crypto = require('crypto');
 const { authenticate, requireTier } = require('../middleware/auth');
 const { db } = require('../db');
 
 const router = express.Router();
+if (!process.env.JWT_SECRET) {
+  throw new Error('JWT_SECRET no configurado en variables de entorno');
+}
+const ENCRYPTION_KEY = crypto.createHash('sha256').update(process.env.JWT_SECRET).digest();
+
+function decrypt(text) {
+  try {
+    const parts = text.split(':');
+    const iv = Buffer.from(parts[0], 'hex');
+    const encrypted = parts[1];
+    const decipher = crypto.createDecipheriv('aes-256-cbc', ENCRYPTION_KEY, iv);
+    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
+  } catch (e) {
+    return null;
+  }
+}
 
 const DAILY_MESSAGE_LIMIT = { free: 50, premium: 999999 };
 
@@ -60,7 +79,7 @@ router.post('/gemini/chat', authenticate, (req, res) => {
 });
 
 // Universal chat proxy — soporta Gemini, Claude, OpenAI, Groq
-router.post('/chat', async (req, res) => {
+router.post('/chat', authenticate, async (req, res) => {
   try {
     const { provider, message } = req.body;
     if (!provider || !message) {
@@ -85,7 +104,12 @@ router.post('/chat', async (req, res) => {
     };
     const config = PROVIDER_KEYS[provider];
     if (!config) return res.status(400).json({ error: `Proveedor no soportado: ${provider}` });
-    const apiKey = process.env[config.env] || db.prepare('SELECT key_encrypted FROM api_keys WHERE provider = ? AND is_active = 1').get(provider)?.key_encrypted;
+    const envKey = process.env[config.env];
+    let apiKey = envKey;
+    if (!apiKey) {
+      const row = db.prepare('SELECT key_encrypted FROM api_keys WHERE user_id = ? AND provider = ? AND is_active = 1').get(req.user.id, provider);
+      if (row?.key_encrypted) apiKey = decrypt(row.key_encrypted);
+    }
     if (!apiKey) {
       return res.status(400).json({ error: `API key para ${provider} no encontrada. Configúrala en el servidor o desde la app.` });
     }

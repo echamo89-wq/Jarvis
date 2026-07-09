@@ -10,6 +10,15 @@ const crypto = require('crypto');
 const { registerSecureStorageIpc, loadCredentials, saveCredentials } = require('./main/secure-storage');
 const { registerPsIpc } = require('./main/ps-executor');
 
+// ─── Capturar errores no manejados en el proceso principal ───
+process.on('uncaughtException', (err) => {
+  console.error(`\x1b[31m[MAIN] UNCAUGHT EXCEPTION: ${err.message}\x1b[0m`);
+  console.error(`\x1b[31m[MAIN] Stack: ${err.stack?.substring(0, 1000)}\x1b[0m`);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error(`\x1b[33m[MAIN] UNHANDLED REJECTION: ${reason?.message || reason}\x1b[0m`);
+});
+
 try {
   const env = fs.readFileSync('.env', 'utf8');
   env.split('\n').forEach(line => {
@@ -210,6 +219,14 @@ function createMainWindow() {
 
   _mainWindow.webContents.on('render-process-gone', (event, details) => {
     console.error(`\x1b[31m[MAIN] RENDERER CRASHED: reason=${details.reason} exitCode=${details.exitCode}\x1b[0m`);
+    console.error(`\x1b[31m[MAIN] Recargando ventana en 2s...\x1b[0m`);
+    setTimeout(() => {
+      try {
+        if (!_mainWindow.isDestroyed()) _mainWindow.reload();
+      } catch(e) {
+        console.error(`\x1b[31m[MAIN] Error al recargar: ${e.message}\x1b[0m`);
+      }
+    }, 2000);
   });
 
   _mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -217,18 +234,7 @@ function createMainWindow() {
     return { action: 'deny' };
   });
 
-  _mainWindow.loadFile('renderer.html');
-
-  // Habilitar DevTools con F12 o Ctrl+Shift+I solo si no está empaquetado (modo desarrollo)
-  _mainWindow.webContents.on('before-input-event', (event, input) => {
-    if (!app.isPackaged) {
-      if ((input.control && input.shift && input.key.toLowerCase() === 'i') || input.key === 'F12') {
-        _mainWindow.webContents.toggleDevTools();
-        event.preventDefault();
-      }
-    }
-  });
-
+  // ─── --reset: limpiar todo ANTES de cargar la página ──────────
   if (process.argv.includes('--reset')) {
     try {
       const envPath = path.join(__dirname, '.env');
@@ -241,16 +247,35 @@ function createMainWindow() {
       saveCredentials(creds);
     } catch (e) {}
     console.log('[MAIN] --reset: API key, .env y secure storage limpiados');
-    _mainWindow.webContents.on('did-finish-load', () => {
-      _mainWindow.webContents.executeJavaScript(`
-        if (!sessionStorage.getItem('jarvis_reset_done')) {
-          sessionStorage.setItem('jarvis_reset_done', '1');
-          localStorage.clear();
-          location.reload();
-        }
-      `).catch(() => {});
-    });
+    // Eliminar archivos de localStorage del disco ANTES de cargar la página
+    try {
+      const p = require('path');
+      const userData = app.getPath('userData');
+      const lsPath = p.join(userData, 'Local Storage');
+      if (require('fs').existsSync(lsPath)) {
+        require('fs').rmSync(lsPath, { recursive: true, force: true });
+        console.log('[MAIN] --reset: localStorage eliminado del disco');
+      }
+      const ssPath = p.join(userData, 'Session Storage');
+      if (require('fs').existsSync(ssPath)) {
+        require('fs').rmSync(ssPath, { recursive: true, force: true });
+      }
+    } catch (e) {
+      console.warn('[MAIN] Error limpiando almacenamiento local:', e.message);
+    }
   }
+
+  _mainWindow.loadFile('renderer.html');
+
+  // Habilitar DevTools con F12 o Ctrl+Shift+I solo si no está empaquetado (modo desarrollo)
+  _mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (!app.isPackaged) {
+      if ((input.control && input.shift && input.key.toLowerCase() === 'i') || input.key === 'F12') {
+        _mainWindow.webContents.toggleDevTools();
+        event.preventDefault();
+      }
+    }
+  });
 
   return _mainWindow;
 }
@@ -920,7 +945,12 @@ ipcMain.handle('ws-connect', async (event) => {
       const text = `Handshake fallido: HTTP ${status}`;
       console.error(`[MAIN] Gemini WS unexpected-response: ${text}`);
       if (win && !win.isDestroyed()) {
-        win.webContents.send('ws-status', { type: 'error', event: { type: 'error', message: text } });
+        // 401/403 = API key inválida/expirada — forzar re-onboarding
+        if (status === 401 || status === 403) {
+          win.webContents.send('ws-status', { type: 'auth_error', event: { message: 'API key inválida o expirada' } });
+        } else {
+          win.webContents.send('ws-status', { type: 'error', event: { type: 'error', message: text } });
+        }
       }
     });
 

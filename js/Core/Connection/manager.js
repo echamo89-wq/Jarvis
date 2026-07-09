@@ -97,6 +97,17 @@ function _setupWsProxy(handlers) {
     if (status.type === 'open') { wsProxy.readyState = 1; wsProxy.onopen?.(status.event); }
     else if (status.type === 'close') { wsProxy.readyState = 3; wsProxy.onclose?.(status.event); }
     else if (status.type === 'error') { wsProxy.readyState = 3; wsProxy.onerror?.(status.event); }
+    else if (status.type === 'auth_error') {
+      _log('error', `Auth error: ${status.event?.message || 'key inválida'}`);
+      // Limpiar key y forzar onboarding
+      localStorage.removeItem('jarvis_gemini_api_key');
+      import('../../auth/index.js').then(m => {
+        m.forceReauth();
+      }).catch(e => {
+        _log('error', `Error al forzar re-auth: ${e.message}`);
+        location.reload();
+      });
+    }
   });
   window.ws = wsProxy;
   _proxyCleanupFn = () => {
@@ -210,8 +221,8 @@ export async function connectWebSocket() {
                 disabled: false,
                 startOfSpeechSensitivity: 'START_SENSITIVITY_HIGH',
                 endOfSpeechSensitivity: 'END_SENSITIVITY_LOW',
-                prefixPaddingMs: 200,
-                silenceDurationMs: 400
+                prefixPaddingMs: 300,
+                silenceDurationMs: 2000
               }
           },
           systemInstruction: { parts: [{ text: systemInstruction }] },

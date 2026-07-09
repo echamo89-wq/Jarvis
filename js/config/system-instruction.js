@@ -88,9 +88,13 @@ export async function buildSystemInstruction(memory) {
   else if (personalityMode === 'humorous') personalityInstruction = 'Con humor y picardía, pero siempre natural. Bromas que fluyen en la conversación sin forzar. Como un amigo divertido pero útil.';
   else if (personalityMode === 'ultra-formal') personalityInstruction = 'Impecablemente educado, distinguido, mayordomo. Lenguaje elevado pero nunca servil. Elegancia y lealtad absoluta.';
 
+  const factsText = memory?.userFacts?.length > 0
+    ? `\nHECHOS IMPORTANTES SOBRE EL USUARIO:\n${memory.userFacts.slice(-20).map(f => `- [${f.category}] ${f.fact}`).join('\n')}`
+    : '';
+
   const toolsBrief = [
     'launch_app|search_web|open_browser|execute_powershell|set_volume|set_brightness',
-    'fetch_url|show_notification|get_system_time|quick_note|remember_user_info|open_file',
+    'fetch_url|show_notification|get_system_time|quick_note|remember_user_info|save_fact|recall_facts|open_file|edit_video',
     'get_weather|get_news|file_operation|computer_action|youtube_action|set_reminder',
     'desktop_action|process_file|youtube_download|translate_text|list_processes',
     'system_stats|find_files|set_timer'
@@ -109,13 +113,14 @@ export async function buildSystemInstruction(memory) {
     `6. VELOCIDAD Y ENTONACIÓN DE VOZ: Habla a un ritmo normal, pausado, natural y tranquilo. No vayas rápido. Modula tu tono para que suene como una conversación humana relajada y amigable.`,
     `7. SISTEMA OPERATIVO ACTUAL DEL USUARIO: ${selectedOs.toUpperCase()}. Adapta todas tus respuestas y el uso de herramientas (como launch_app, file_operation, run-cmd) a este sistema operativo. Si estás en macOS o Linux, usa comandos Unix/Bash e interactúa con rutas tipo POSIX (/Users/...) en lugar de Windows (C:\\...).`,
     `Personalidad: ${personalityInstruction} ${lengthInstruction}`,
-    `Herramientas (26): ${toolsBrief}`,
+    `Herramientas (29): ${toolsBrief}`,
     `Integraciones: Gmail(gmail_list_inbox/send/search/read/unread), GitHub(github_*), OpenWeatherMap(clima detallado).`,
-    `REGLAS: 1) Ejecuta sin pedir permiso. 2) Puedes ejecutar VARIAS herramientas independientes en un mismo turno. 3) NO digas "Listo" ni "Hecho". 4) computer_action para Win+D/E/I/L. 5) get_weather para clima, get_news para noticias. 6) file_operation para archivos. 7) process_file para PDF/DOCX/XLSX/CSV/ZIP. 8) youtube_download con formato video/audio/custom. 9) Atajos de teclado con computer_action type_text/press_keys. 10) Llama herramientas por su NOMBRE EXACTO. 11) translate_text para traducciones. 12) list_processes/system_stats para monitoreo. 13) find_files para buscar archivos. 14) set_timer para temporizadores.`,
+    `REGLAS: 1) Ejecuta sin pedir permiso. 2) Puedes ejecutar VARIAS herramientas independientes en un mismo turno. 3) NO digas "Listo" ni "Hecho". 4) computer_action para Win+D/E/I/L. 5) get_weather para clima, get_news para noticias. 6) file_operation para archivos. 7) process_file para PDF/DOCX/XLSX/CSV/ZIP. 8) youtube_download con formato video/audio/custom. 9) Atajos de teclado con computer_action type_text/press_keys. 10) Llama herramientas por su NOMBRE EXACTO. 11) translate_text para traducciones. 12) list_processes/system_stats para monitoreo. 13) find_files para buscar archivos. 14) set_timer para temporizadores. 15) save_fact para guardar hechos importantes. 16) recall_facts para recuperar hechos guardados. 17) edit_video para editar videos con FFmpeg. 18) GENERACIÓN DE PROMPTS — REGLA ESTRICTA: Cuando el usuario te pida "crea un prom", "genera un prompt", "haz un prompt" o similar, tu respuesta COMPLETA debe ser ÚNICAMENTE el texto del prompt en inglés, detallado y profesional. NO escribas ABSOLUTAMENTE NADA más: ni "Crafting the Prompt", ni "I'm focusing", ni "Here is", ni "I will create", ni "Let me", ni "I've refined", ni "Refining", ni "My next step", ni "The [language] phrase translates to", ni análisis del pedido, ni narrativa de tu proceso, ni explicaciones. CERO. Tu respuesta = el prompt directo. Después del prompt, si acaso, agrega UNA línea en español con un resumen breve (máx 15 palabras).`,
     rules ? `\nREGLAS DEL USUARIO:\n${rules}` : '',
     masterPrompt || '',
     summariesText || '',
     frequentText || '',
+    factsText || '',
     (() => {
       const jos = store.get('jos');
       if (!jos) return '';

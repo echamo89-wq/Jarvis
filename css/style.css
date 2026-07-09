@@ -757,6 +757,40 @@ html, body {
   color: rgba(220, 255, 240, 0.95);
 }
 
+/* Copy button for Jarvis responses */
+.msg-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 6px;
+  color: rgba(255,255,255,0.45);
+  font-size: 0.65rem;
+  padding: 3px 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: 8px;
+  font-family: inherit;
+  letter-spacing: 0.3px;
+  user-select: none;
+}
+.msg-copy-btn:hover {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.8);
+  border-color: rgba(255,255,255,0.25);
+}
+.msg-copy-btn:active {
+  transform: scale(0.95);
+}
+.msg-copy-btn .copy-icon {
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+.msg-copy-btn .copy-label {
+  font-weight: 400;
+}
+
 /* Scanline holográfico sutil */
 .message-area .msg-inner::after {
   content: '';

@@ -15,7 +15,7 @@ import {
 } from './handlers/desktop.js';
 
 import {
-  handleGetWeather, handleGetNews, handleYoutubeAction, handleYoutubeDownload
+  handleGetWeather, handleGetNews, handleYoutubeAction, handleYoutubeDownload, handleEditVideo
 } from './handlers/media.js';
 
 import { handleDeepResearch } from './handlers/research.js';
@@ -53,8 +53,11 @@ const _toolLabels = {
   system_stats: 'Analizando sistema',
   find_files: 'Buscando archivos',
   remember_user_info: 'Recordando información',
+  save_fact: 'Guardando hecho importante',
+  recall_facts: 'Recordando hechos',
   deep_research: 'Investigando a fondo',
-  take_screenshot: 'Capturando pantalla'
+  take_screenshot: 'Capturando pantalla',
+  edit_video: 'Editando video'
 };
 
 function _getToolDescription(call) {
@@ -234,6 +237,18 @@ async function _dispatchTool(call, store, sessionContext) {
       bus.emit('memory:write-requested', memory);
     }
     return { success: true, output: 'Información almacenada.' };
+  } else if (call.name === 'save_fact') {
+    _log('info', `Saving fact: ${(call.args.fact || '').substring(0, 100)}`);
+    const { saveFact } = await import('../memory/facts.js');
+    const ok = saveFact(call.args.category, call.args.fact, call.args.importance);
+    return { success: ok, output: ok ? 'Hecho guardado.' : 'Error al guardar hecho.' };
+  } else if (call.name === 'recall_facts') {
+    _log('info', `Recalling facts: cat=${call.args.category || ''} kw=${call.args.keyword || ''}`);
+    const { recallFacts } = await import('../memory/facts.js');
+    const facts = recallFacts(call.args.category, call.args.keyword, call.args.limit);
+    if (facts.length === 0) return { success: true, output: 'No se encontraron hechos guardados.' };
+    const text = facts.map(f => `[${f.category}] ${f.fact}`).join('\n');
+    return { success: true, output: text };
   } else if (call.name === 'deep_research') {
     _log('info', `Deep research: "${call.args.topic}" (${call.args.depth || 'normal'})`);
     const result = await handleDeepResearch(call);
@@ -250,6 +265,11 @@ async function _dispatchTool(call, store, sessionContext) {
     } catch (e) {
       return { success: false, output: `Screenshot error: ${e.message}` };
     }
+  } else if (call.name === 'edit_video') {
+    _log('info', `Edit video: ${call.args.operation} on ${call.args.input}`);
+    const result = await handleEditVideo(call);
+    _trackCommand(`edit_video:${call.args.operation}`);
+    return result;
   } else if (call.name.startsWith('github_') || call.name.startsWith('get_weather_') || call.name.startsWith('gmail_')) {
     const { executeIntegrationTool } = await import('../integrations/index.js');
     const result = await executeIntegrationTool(call.name, call.args || {});

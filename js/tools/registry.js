@@ -105,6 +105,16 @@ Returns structured text you can read and use in your response. Use fetch_url for
       parameters: { type: 'object', properties: { details: { type: 'string', description: 'Complete user profile including all known information.' } }, required: ['details'] }
     },
     {
+      name: 'save_fact',
+      description: 'Saves an important fact or piece of information about the user, their preferences, projects, or anything they want remembered long-term. Use when the user says "recuerda que", "guarda este dato", "importante saber que", "ten en cuenta que", "quiero que sepas". Facts persist across sessions.',
+      parameters: { type: 'object', properties: { category: { type: 'string', description: 'Category like "personal", "work", "project", "preference", "health", "taste", "goal". Default: "general".' }, fact: { type: 'string', description: 'The fact or information to remember.' }, importance: { type: 'string', description: '"low", "normal", or "high". Default: "normal".' } }, required: ['fact'] }
+    },
+    {
+      name: 'recall_facts',
+      description: 'Retrieves previously saved facts from memory. Use when the user asks "qué sabes de", "recuerdas algo sobre", "qué guardé sobre", "dime qué sabes".',
+      parameters: { type: 'object', properties: { category: { type: 'string', description: 'Filter by category (optional).' }, keyword: { type: 'string', description: 'Search keyword to filter facts (optional).' }, limit: { type: 'number', description: 'Max results to return. Default: 10.' } } }
+    },
+    {
       name: 'open_file',
       description: `Opens any file, folder, or drive using the default Windows application. Use for:
 • Documents: PDF, DOCX, XLSX, images, videos, audio
@@ -265,6 +275,28 @@ OUTPUT: You will receive the screenshot as an image. Describe what you see in de
       parameters: { type: 'object', properties: {
         description: { type: 'string', description: 'What the user wants you to look at or analyze on their screen. Be specific.' }
       }, required: ['description'] }
-    }
+    },
+    {
+      name: 'edit_video',
+      description: 'Edits a video file on the user\'s computer using FFmpeg. Supports trim (cortar), convert (convertir formato), extract_audio (extraer audio mp3), merge (unir videos), add_text (agregar texto), resize (cambiar resolución), speed (cambiar velocidad 0.25x-4x), compress (comprimir con CRF). REQUIRES ffmpeg installed.',
+      parameters: { type: 'object', properties: {
+        operation: { type: 'string', description: 'Operation: "trim", "convert", "extract_audio", "merge", "add_text", "resize", "speed", or "compress".' },
+        input: { type: 'string', description: 'Full path to the input video file.' },
+        output: { type: 'string', description: 'Full path for the output file (optional).' },
+        start: { type: 'string', description: 'Trim start time (eg "0" or "00:01:30"). Default "0".' },
+        end: { type: 'string', description: 'Trim end time (eg "00:02:00").' },
+        duration: { type: 'string', description: 'Trim duration in seconds (eg "30").' },
+        format: { type: 'string', description: 'Target format for convert (eg "mp4", "avi", "mov").' },
+        audio_format: { type: 'string', description: 'Audio format for extract_audio (eg "mp3", "wav"). Default "mp3".' },
+        files: { type: 'string', description: 'For merge: list of file paths separated by | (pipe).' },
+        text: { type: 'string', description: 'Text to overlay on the video (for add_text).' },
+        position: { type: 'string', description: 'Text position: "top", "bottom", "center". Default "bottom".' },
+        font_size: { type: 'number', description: 'Font size for text overlay. Default 24.' },
+        width: { type: 'number', description: 'Target width for resize. Default 1280.' },
+        height: { type: 'number', description: 'Target height for resize. Default 720.' },
+        speed: { type: 'number', description: 'Speed multiplier for speed operation (0.25 to 4). 2 = double speed.' },
+        crf: { type: 'number', description: 'CRF value for compress (18-28, lower = better quality). Default 28.' }
+      }, required: ['operation', 'input'] }
+    },
   ];
 }

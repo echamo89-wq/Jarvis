@@ -6,17 +6,30 @@ const crypto = require('crypto');
 const CREDENTIALS_FILE = path.join(app.getPath('userData'), 'jarvis_credentials.enc');
 
 function _getMachineKey() {
-  try {
-    if (safeStorage.isEncryptionAvailable()) {
-      return safeStorage.getEncryptedPassword();
-    }
-  } catch (e) {}
   const keyPath = path.join(app.getPath('userData'), '.jarvis_key');
+  // Intentar leer key existente
   if (fs.existsSync(keyPath)) {
+    try {
+      if (safeStorage.isEncryptionAvailable()) {
+        const encrypted = fs.readFileSync(keyPath);
+        return safeStorage.decryptString(encrypted).toString('utf8');
+      }
+    } catch (e) {}
+    // Fallback: key en texto plano (migración o safeStorage no disponible)
     return fs.readFileSync(keyPath, 'utf8');
   }
+  // Generar nueva key
   const newKey = crypto.randomBytes(32).toString('hex');
-  fs.writeFileSync(keyPath, newKey, 'utf8');
+  try {
+    if (safeStorage.isEncryptionAvailable()) {
+      const encrypted = safeStorage.encryptString(newKey);
+      fs.writeFileSync(keyPath, encrypted);
+    } else {
+      fs.writeFileSync(keyPath, newKey, 'utf8');
+    }
+  } catch (e) {
+    fs.writeFileSync(keyPath, newKey, 'utf8');
+  }
   return newKey;
 }
 

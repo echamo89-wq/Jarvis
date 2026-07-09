@@ -119,3 +119,82 @@ export async function handleYoutubeDownload(call) {
   }
   return { success: false, output: `Error descargando video: ${(psOutput.output || '').replace(/^ERROR:\s*/, '')}` };
 }
+
+export async function handleEditVideo(call) {
+  const args = call.args || {};
+  const operation = args.operation || '';
+  const input = args.input || '';
+
+  if (!input) return { success: false, output: 'Especifica la ruta del video de entrada.' };
+  if (!operation) return { success: false, output: 'Especifica una operación: trim, convert, extract_audio, merge, add_text, resize, speed, o compress.' };
+
+  const checkCmd = 'Get-Command ffmpeg -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source';
+  const check = await executePowerShellCommand(checkCmd, 'edit_video', false);
+  if (!check.success || !check.output) {
+    return { success: false, output: 'FFmpeg no está instalado. Descárgalo desde https://ffmpeg.org y agrégalo al PATH.' };
+  }
+
+  const outPath = args.output || input.replace(/(\.[^.]+)$/, `_${operation}$1`);
+  let psCmd = '';
+  switch (operation) {
+    case 'trim': {
+      const start = args.start || '0';
+      const end = args.end || '';
+      const duration = args.duration || '';
+      if (!duration && !end) return { success: false, output: 'Especifica duration (ej: 30) o end (ej: 00:01:30).' };
+      const t = duration ? `-t ${duration}` : `-to ${end}`;
+      psCmd = `ffmpeg -y -i "${input}" -ss ${start} ${t} -c copy "${outPath}" 2>&1`;
+      break;
+    }
+    case 'convert': {
+      psCmd = `ffmpeg -y -i "${input}" "${outPath}" 2>&1`;
+      break;
+    }
+    case 'extract_audio': {
+      const aFmt = args.audio_format || 'mp3';
+      const codec = aFmt === 'mp3' ? 'libmp3lame' : 'copy';
+      psCmd = `ffmpeg -y -i "${input}" -vn -acodec ${codec} "${outPath}" 2>&1`;
+      break;
+    }
+    case 'merge': {
+      const files = args.files || '';
+      if (!files) return { success: false, output: 'Especifica los archivos a unir separados por |' };
+      const list = files.split('|').map(f => f.trim()).filter(Boolean);
+      if (list.length < 2) return { success: false, output: 'Se necesitan al menos 2 archivos.' };
+      const listFile = '$env:TEMP\\jarvis_merge.txt';
+      const content = list.map(f => `file '${f.replace(/'/g,"'\\''")}'`).join('`n');
+      psCmd = `Set-Content -Path ${listFile} -Value "${content}"; ffmpeg -y -f concat -safe 0 -i ${listFile} -c copy "${outPath}" 2>&1; Remove-Item ${listFile} -Force`;
+      break;
+    }
+    case 'add_text': {
+      const text = args.text || '';
+      if (!text) return { success: false, output: 'Especifica el texto a agregar.' };
+      const posMap = { top:'10:(h-text_h-10)', bottom:'10:(h-text_h-10)', center:'(w-text_w)/2:(h-text_h)/2' };
+      const pos = posMap[args.position || 'bottom'] || posMap.bottom;
+      psCmd = `ffmpeg -y -i "${input}" -vf "drawtext=text='${text.replace(/'/g,"'\\\\''")}':fontsize=${args.font_size||24}:fontcolor=white:box=1:boxcolor=black@0.5:x=${pos}:y=${pos}" "${outPath}" 2>&1`;
+      break;
+    }
+    case 'resize': {
+      psCmd = `ffmpeg -y -i "${input}" -vf "scale=${args.width||1280}:${args.height||720}" "${outPath}" 2>&1`;
+      break;
+    }
+    case 'speed': {
+      const s = Math.max(0.25, Math.min(4, parseFloat(args.speed) || 1));
+      const sp = 1 / s;
+      psCmd = `ffmpeg -y -i "${input}" -filter_complex "[0:v]setpts=${sp}*PTS[v];[0:a]atempo=${s}[a]" -map "[v]" -map "[a]" "${outPath}" 2>&1`;
+      break;
+    }
+    case 'compress': {
+      psCmd = `ffmpeg -y -i "${input}" -vcodec libx264 -crf ${args.crf||28} "${outPath}" 2>&1`;
+      break;
+    }
+    default:
+      return { success: false, output: `Operación desconocida: ${operation}.` };
+  }
+
+  const result = await executePowerShellCommand(psCmd, 'edit_video', true);
+  if (result.success) {
+    return { success: true, output: `${operation === 'extract_audio' ? 'Audio extraído' : 'Video editado'}: ${outPath}` };
+  }
+  return { success: false, output: `Error en ${operation}: ${(result.output||'').substring(0,500)}` };
+}

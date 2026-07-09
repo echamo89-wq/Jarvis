@@ -106,6 +106,14 @@ function _showStep(stepId) {
   if (step) step.classList.add('active');
 }
 
+export function forceReauth() {
+  localStorage.clear();
+  if (window.electronAPI?.clearStorage) {
+    window.electronAPI.clearStorage().catch(() => {});
+  }
+  location.reload();
+}
+
 function _completeOnboarding() {
   localStorage.setItem(ONBOARDED_KEY, 'true');
   localStorage.setItem(CREATOR_KEY, 'true');

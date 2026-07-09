@@ -9,7 +9,6 @@ import { updateDiagnostics } from '../../chat/diagnostics.js';
 import { playPCMChunk, stopAudioPlayback, playSystemSound } from '../../audio/playback.js';
 import { autoCorrectSpanish } from '../../utils/autocorrect.js';
 import { createLogger } from '../../utils/logger.js';
-import { hasSpanish, enWordRatio, EN_PURE_REASON } from '../../utils/text-utils.js';
 const _log = createLogger('WS-H');
 
 let _pendingTranscript = null;
@@ -20,9 +19,14 @@ function _q(id) { return _DOM[id] || (_DOM[id] = document.getElementById(id)); }
 function _qs(sel) { return _DOM[sel] || (_DOM[sel] = document.querySelector(sel)); }
 export function resetGreetingFlag() { _greetingSentThisSession = false; }
 
+const MAX_RESPONSE_LENGTH = 10000;
+
 function _cleanModelText(text) {
   if (!text || !text.trim()) return '';
   text = text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+  if (text.length > MAX_RESPONSE_LENGTH + 1000) {
+    text = text.substring(0, MAX_RESPONSE_LENGTH);
+  }
   text = text.replace(/^\[Texto\]\s*/i, '');
   const dedup = (userMsg) => {
     if (!userMsg) return false;
@@ -45,16 +49,6 @@ function _cleanModelText(text) {
   }
   // Fallback: comparar con el último transcript grabado (cubre audio-only turns)
   if (_lastUserEcho && dedup(_lastUserEcho)) return '';
-  if (EN_PURE_REASON.test(text)) {
-    const q = text.match(/"([^"]+)"/g);
-    if (q) {
-      const esqs = q.map(s => s.replace(/"/g, '')).filter(s => hasSpanish(s));
-      if (esqs.length > 0) return esqs.join('. ');
-    }
-    if (!hasSpanish(text)) return '';
-  }
-  const enRatio = enWordRatio(text);
-  if (enRatio > 0.70 && !hasSpanish(text)) return '';
   text = text
     .replace(/```[\s\S]*?```/g, '')
     .replace(/`[^`]+`/g, '')
@@ -172,13 +166,14 @@ function _handleServerContent(content) {
     _pendingTranscript = fullAccum;
 
     // Instant display — no typewriter so text tracks audio in real-time
-    // Skip if modelTurn already showed the text (prevents double display)
-    if (store.get('_turnTextShown')) return;
+    // Always update display with latest accumulated text
     const cleanedFull = _cleanModelText(fullAccum);
     if (cleanedFull) {
-      hideChatStatus();
+      if (!store.get('_turnTextShown')) {
+        hideChatStatus();
+        store.set('_turnTextShown', true);
+      }
       handleJarvisTranscriptInstant(cleanedFull);
-      store.set('_turnTextShown', true);
     }
   }
   if (content.modelTurn?.parts) {
@@ -195,6 +190,8 @@ function _handleServerContent(content) {
       } else {
         removeInterimUserMessage();
       }
+      const isPromptRequest = /\b(prom|prompt)\b/i.test(userText);
+      store.set('_silentTurn', !wasVoice || isPromptRequest);
       const history = store.get('conversationHistory');
       if (history.length > 200) history.splice(0, history.length - 200);
       history.push({ role: 'user', content: userText });
@@ -211,27 +208,33 @@ function _handleServerContent(content) {
     store.set('_lastUserTranscript', '');
     const hasAudio = content.modelTurn.parts.some(p => p.inlineData?.data);
     if (hasAudio) store.set('_turnHasAudio', true);
+    const silentMode = store.get('_silentTurn') || store.get('_textInputMode');
     content.modelTurn.parts.forEach(part => {
-      if (part.text) {
-        const text = part.text;
-        const cleaned = _cleanModelText(text);
-        if (part.thought === true) {
-          const tb = _q('thinking-body');
-          const currentText = tb ? (tb.innerText || '') : '';
-          updateThinkingPanel(currentText + '\n' + text);
-        } else if (cleaned && !store.get('_turnTextShown')) {
-          hideChatStatus();
-          _log('info', `[TEXT] ${cleaned.substring(0, 80)}`);
-          handleJarvisTextChunk(cleaned);
-          store.set('_turnTextShown', true);
+        if (part.text) {
+          const text = part.text;
+          const cleaned = _cleanModelText(text);
+          if (part.thought === true) {
+            const tb = _q('thinking-body');
+            const currentText = tb ? (tb.innerText || '') : '';
+            updateThinkingPanel(currentText + '\n' + text);
+          }
+          if (cleaned) {
+            if (!store.get('_turnTextShown')) {
+              hideChatStatus();
+              _log('info', `[TEXT] ${cleaned.substring(0, 80)}`);
+              store.set('_turnTextShown', true);
+            }
+            handleJarvisTextChunk(cleaned);
+          }
         }
-      }
-      if (part.inlineData?.data && store.get('focusMode')) playPCMChunk(part.inlineData.data);
+      if (part.inlineData?.data && store.get('focusMode') && !silentMode) playPCMChunk(part.inlineData.data);
     });
     _pendingTranscript = null;
   }
   if (content.turnComplete) {
     store.set('_turnHasAudio', false);
+    store.set('_textInputMode', false);
+    store.set('_silentTurn', false);
     _log('info', '=== TURNO COMPLETADO ===');
     hideChatStatus();
     removeInterimUserMessage();

@@ -99,6 +99,7 @@ function _updateIndicator(role) {
 function _clearMsg() {
   _setUserText('');
   _setJarvisText('');
+  _showCopyButton(false);
   _updateIndicator('none');
 }
 
@@ -234,16 +235,25 @@ export function handleJarvisTranscriptInstant(fullText) {
   }
   if (els.jarvisPart) els.jarvisPart.style.display = 'block';
   _updateBubbleVisibility();
+  _setupCopyButtonOnFinalText();
 
+  store.set('_currentTurnTextBuffer', fullText);
+  _convLog('conv_response', fullText.substring(0, 500));
   store.set('_turnState', 'responding');
 }
 
 // ─── 3b. JARVIS — typewriter (text-only response, no audio) ──
+const MAX_DISPLAY_LENGTH = 8000;
 export function handleJarvisTextChunk(chunk) {
   try {
     const toolCount = store.get('toolCount');
     let buffer = store.get('_currentTurnTextBuffer') || '';
-    if (toolCount === 0) buffer += chunk;
+    if (toolCount === 0) {
+      if (buffer.length + chunk.length > MAX_DISPLAY_LENGTH) {
+        chunk = chunk.substring(0, MAX_DISPLAY_LENGTH - buffer.length);
+      }
+      buffer += chunk;
+    }
     store.set('_currentTurnTextBuffer', buffer);
     const split = _separateThinkingAndResponse(buffer);
     updateThinkingPanel(split.thinking);
@@ -372,6 +382,7 @@ export function _resetTurnState() {
   _setUserText('');
   _setJarvisText('');
   _updateIndicator('none');
+  _showCopyButton(false);
   _hideProgress();
   if (_fadeTimer) { clearTimeout(_fadeTimer); _fadeTimer = null; }
   store.set('_currentTurnTextBuffer', '');
@@ -382,6 +393,7 @@ export function _resetTurnState() {
 
 // ─── 7. Close active Jarvis bubble (turn complete) ───────
 export function _closeActiveJarvisBubble() {
+  store.set('_pausePCM', false);
   _stopTypewriter();
   const els    = _getEls();
   const buffer = store.get('_currentTurnTextBuffer') || '';
@@ -394,6 +406,7 @@ export function _closeActiveJarvisBubble() {
     els.jarvisText.classList.remove('typing');
     if (els.jarvisPart) els.jarvisPart.style.display = 'block';
     _updateBubbleVisibility();
+    _setupCopyButtonOnFinalText();
   }
 
   const history = store.get('conversationHistory');
@@ -436,6 +449,43 @@ export function _closeActiveJarvisBubble() {
   _fadeTimer = setTimeout(() => {
     _fadeOutMsg(() => _clearMsg());
   }, 15000);
+}
+
+// ─── Copy button for Jarvis responses ──────────────────
+function _getCopyBtn() {
+  let btn = document.getElementById('msg-copy-btn');
+  if (!btn) {
+    btn = document.createElement('button');
+    btn.id = 'msg-copy-btn';
+    btn.className = 'msg-copy-btn';
+    btn.innerHTML = '<span class="copy-icon">⎘</span><span class="copy-label">Copiar</span>';
+    btn.title = 'Copiar respuesta';
+    btn.style.display = 'none';
+    const jarvisPart = document.getElementById('msg-jarvis-part');
+    if (jarvisPart) jarvisPart.appendChild(btn);
+    btn.addEventListener('click', () => {
+      const text = document.getElementById('msg-jarvis-text')?.textContent || '';
+      if (!text) return;
+      navigator.clipboard.writeText(text).then(() => {
+        const label = btn.querySelector('.copy-label');
+        if (label) {
+          label.textContent = '✓ Copiado';
+          setTimeout(() => { label.textContent = 'Copiar'; }, 2000);
+        }
+      }).catch(() => {});
+    });
+  }
+  return btn;
+}
+
+function _showCopyButton(show) {
+  const btn = _getCopyBtn();
+  btn.style.display = show ? 'inline-flex' : 'none';
+}
+
+function _setupCopyButtonOnFinalText() {
+  const text = document.getElementById('msg-jarvis-text')?.textContent?.trim();
+  _showCopyButton(text && text.length > 0);
 }
 
 // ─── 8. System error ─────────────────────────────────────
@@ -517,6 +567,7 @@ export function sendTextMessage() {
   import('../audio/playback.js').then(async ({ stopAudioPlayback }) => {
     stopAudioPlayback();
     _resetTurnState();
+    store.set('_pausePCM', true);
     appendUserMessage(text, correctedText !== text ? correctedText : '');
     _log('info', `[TEXTO ENVIADO] "${text}"${correctedText ? ' → "' + correctedText + '"' : ''}`);
 
@@ -567,6 +618,7 @@ export function sendTextMessage() {
     const history = store.get('conversationHistory');
     const allTurns = (history || []).slice(-40).map(e => ({ role: e.role === 'user' ? 'user' : 'model', parts: [{ text: e.content }] }));
     allTurns.push({ role: 'user', parts: [{ text: '[Texto] ' + displayText }] });
+    store.set('_textInputMode', true);
     ws.send(JSON.stringify({
       clientContent: { turns: allTurns, turnComplete: true }
     }));
