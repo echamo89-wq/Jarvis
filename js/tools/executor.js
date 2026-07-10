@@ -15,7 +15,7 @@ import {
 } from './handlers/desktop.js';
 
 import {
-  handleGetWeather, handleGetNews, handleYoutubeAction, handleYoutubeDownload, handleEditVideo
+  handleGetWeather, handleGetNews, handleGetSportsNews, handleYoutubeAction, handleYoutubeDownload, handleEditVideo
 } from './handlers/media.js';
 
 import { handleDeepResearch } from './handlers/research.js';
@@ -40,6 +40,7 @@ const _toolLabels = {
   open_file: 'Abriendo archivo',
   get_weather: 'Consultando clima',
   get_news: 'Buscando noticias',
+  get_sports_news: 'Buscando noticias deportivas',
   file_operation: 'Operando archivos',
   computer_action: 'Ejecutando acción',
   youtube_action: 'Buscando en YouTube',
@@ -194,6 +195,11 @@ async function _dispatchTool(call, store, sessionContext) {
   } else if (call.name === 'get_news') {
     const result = await handleGetNews(call);
     if (result.success) _trackCommand(call.args.topic ? `noticias: ${call.args.topic}` : 'noticias');
+    return result;
+  } else if (call.name === 'get_sports_news') {
+    _log('info', `Sports news: ${call.args.sport || 'general'}`);
+    const result = await handleGetSportsNews(call);
+    if (result.success) _trackCommand(`deportes: ${call.args.sport || 'general'}`);
     return result;
   } else if (call.name === 'file_operation') {
     _log('info', `File op: ${call.args.operation} ${call.args.path}`);

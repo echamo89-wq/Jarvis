@@ -57,10 +57,14 @@ export function showInfoPanel(opts) {
   if (sources.length > 0) {
     srcEl.textContent = '';
     sources.forEach(s => {
-      const domain = s.replace(/https?:\/\//, '').split('/')[0];
       const span = document.createElement('span');
       span.className = 'ip-source-bubble';
-      span.textContent = domain;
+      // If source has icon prefix (emoji), use as-is; otherwise extract domain
+      if (/^[\u{1F000}-\u{1FFFF}]/u.test(s.trim())) {
+        span.textContent = s;
+      } else {
+        span.textContent = s.replace(/https?:\/\//, '').split('/')[0];
+      }
       srcEl.appendChild(span);
     });
     srcEl.style.display = 'flex';

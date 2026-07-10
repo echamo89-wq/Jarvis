@@ -114,6 +114,7 @@ export async function saveConfig() {
     title: document.getElementById('title-input')?.value.trim() || '',
     personality: document.getElementById('personality-select')?.value || 'professional',
     voice: document.getElementById('voice-select')?.value || 'Fenrir',
+    voiceGender: document.getElementById('voice-gender-select')?.value || 'male',
     length: document.getElementById('length-select')?.value || 'normal',
     fontSize: document.getElementById('font-size-slider')?.value || '2',
     sfx: document.getElementById('sfx-toggle')?.checked ?? true,
@@ -123,7 +124,22 @@ export async function saveConfig() {
     context: document.getElementById('context-textarea')?.value.trim() || '',
     vadThreshold: document.getElementById('vad-slider')?.value || '300',
     alwaysOn: document.getElementById('always-on-toggle')?.checked ?? false,
-    graphics: document.getElementById('graphics-select')?.value || 'high'
+    graphics: document.getElementById('graphics-select')?.value || 'high',
+    // Permisos
+    permOpenBrowser: document.getElementById('perm-open-browser')?.checked ?? true,
+    permLaunchApp: document.getElementById('perm-launch-app')?.checked ?? true,
+    permSetVolume: document.getElementById('perm-set-volume')?.checked ?? true,
+    permFileOps: document.getElementById('perm-file-operations')?.checked ?? true,
+    permExecutePS: document.getElementById('perm-execute-ps')?.checked ?? true,
+    permDownloadYT: document.getElementById('perm-download-youtube')?.checked ?? true,
+    permEditVideo: document.getElementById('perm-edit-video')?.checked ?? true,
+    permScreenshot: document.getElementById('perm-screenshot')?.checked ?? true,
+    permKeyboard: document.getElementById('perm-keyboard')?.checked ?? true,
+    permClipboard: document.getElementById('perm-clipboard')?.checked ?? true,
+    permFindFiles: document.getElementById('perm-find-files')?.checked ?? true,
+    permSystemStats: document.getElementById('perm-system-stats')?.checked ?? true,
+    permReminder: document.getElementById('perm-set-reminder')?.checked ?? true,
+    permNotifications: document.getElementById('perm-notifications')?.checked ?? true,
   };
 
   const old = {
@@ -158,6 +174,10 @@ export async function saveConfig() {
   localStorage.setItem('jarvis_vad_threshold', fields.vadThreshold);
   localStorage.setItem('jarvis_always_on', fields.alwaysOn);
   localStorage.setItem('jarvis_graphics', fields.graphics);
+  localStorage.setItem('jarvis_voice_gender', fields.voiceGender);
+  // Guardar permisos
+  const permKeys = ['permOpenBrowser','permLaunchApp','permSetVolume','permFileOps','permExecutePS','permDownloadYT','permEditVideo','permScreenshot','permKeyboard','permClipboard','permFindFiles','permSystemStats','permReminder','permNotifications'];
+  permKeys.forEach(k => localStorage.setItem(`jarvis_${k}`, fields[k] ? '1' : '0'));
 
   updateUserBadge();
 
@@ -333,6 +353,34 @@ document.addEventListener('DOMContentLoaded', () => {
   const savedKey = localStorage.getItem('jarvis_gemini_api_key') || '';
   if (geminiKeyInput && savedKey) geminiKeyInput.value = savedKey;
 
+  // ── Google Search API ─────────────────────────────────
+  const googleKeyInput = document.getElementById('config-google-api-key');
+  const googleCxInput  = document.getElementById('config-google-cx');
+  const googleToggle   = document.getElementById('config-google-api-toggle');
+  if (googleToggle && googleKeyInput) {
+    googleToggle.addEventListener('click', () => {
+      const isPass = googleKeyInput.type === 'password';
+      googleKeyInput.type = isPass ? 'text' : 'password';
+      googleToggle.textContent = isPass ? '🙈' : '👁';
+    });
+  }
+  const savedGoogleKey = localStorage.getItem('jarvis_google_api_key') || '';
+  const savedGoogleCx  = localStorage.getItem('jarvis_google_cx') || '';
+  if (googleKeyInput && savedGoogleKey) googleKeyInput.value = savedGoogleKey;
+  if (googleCxInput && savedGoogleCx) googleCxInput.value = savedGoogleCx;
+
+  // Save Google keys on change
+  const _saveGoogleKeys = () => {
+    const k = googleKeyInput?.value?.trim() || '';
+    const c = googleCxInput?.value?.trim() || '';
+    if (k) localStorage.setItem('jarvis_google_api_key', k);
+    else localStorage.removeItem('jarvis_google_api_key');
+    if (c) localStorage.setItem('jarvis_google_cx', c);
+    else localStorage.removeItem('jarvis_google_cx');
+  };
+  if (googleKeyInput) googleKeyInput.addEventListener('change', _saveGoogleKeys);
+  if (googleCxInput) googleCxInput.addEventListener('change', _saveGoogleKeys);
+
   if (geminiTestBtn && geminiKeyInput && geminiStatus) {
     geminiTestBtn.addEventListener('click', async () => {
       const key = geminiKeyInput.value.trim();
@@ -473,6 +521,47 @@ document.addEventListener('DOMContentLoaded', () => {
   if (graphicsSelect) {
     graphicsSelect.value = localStorage.getItem('jarvis_graphics') || 'high';
   }
+
+  // ── Voice gender init ─────────────────────────────────
+  const voiceGenderSelect = document.getElementById('voice-gender-select');
+  if (voiceGenderSelect) {
+    voiceGenderSelect.value = localStorage.getItem('jarvis_voice_gender') || 'male';
+  }
+
+  // ── Permissions init ──────────────────────────────────
+  const permMap = {
+    'perm-open-browser': 'jarvis_permOpenBrowser',
+    'perm-launch-app': 'jarvis_permLaunchApp',
+    'perm-set-volume': 'jarvis_permSetVolume',
+    'perm-file-operations': 'jarvis_permFileOps',
+    'perm-execute-ps': 'jarvis_permExecutePS',
+    'perm-download-youtube': 'jarvis_permDownloadYT',
+    'perm-edit-video': 'jarvis_permEditVideo',
+    'perm-screenshot': 'jarvis_permScreenshot',
+    'perm-keyboard': 'jarvis_permKeyboard',
+    'perm-clipboard': 'jarvis_permClipboard',
+    'perm-find-files': 'jarvis_permFindFiles',
+    'perm-system-stats': 'jarvis_permSystemStats',
+    'perm-set-reminder': 'jarvis_permReminder',
+    'perm-notifications': 'jarvis_permNotifications',
+  };
+  Object.entries(permMap).forEach(([elId, storageKey]) => {
+    const el = document.getElementById(elId);
+    if (el) el.checked = localStorage.getItem(storageKey) !== '0';
+  });
+
+  // ── VAD preset buttons ────────────────────────────────
+  document.querySelectorAll('[data-vad]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const val = btn.getAttribute('data-vad');
+      const slider = document.getElementById('vad-slider');
+      if (slider) {
+        slider.value = val;
+        // Trigger visual update if any
+        slider.dispatchEvent(new Event('input'));
+      }
+    });
+  });
 
   // ── State sync: bubble + reactor
   const _statusBubble = document.getElementById('message-area');

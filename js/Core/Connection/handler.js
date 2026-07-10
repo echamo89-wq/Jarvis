@@ -190,6 +190,30 @@ function _handleServerContent(content) {
       } else {
         removeInterimUserMessage();
       }
+      // Modo reunión
+      const meetingStart = /\b(tengo|estoy|entr[oé]|empiezo|inic[ioé]|comienz[ao]|voy a).*(una |la |mi |esta )?(reunión|reunion|junta|llamada)\b/i.test(userText);
+      const meetingEnd = /\b(sal[íi]|termine|termin[éó]|acab[éó]|finalic[éè]|salió|acab[óo]|ya?.{0,10}(?:(sali|termine|acabe|free|libre|disponible)))\b.*\b(reunión|reunion|junta|llamada)\b|\b(ya?.{0,10}?(sali|termine|salgo|termine|acab[éó]))\b/i.test(userText);
+      if (meetingStart) {
+        store.set('_meetingMode', true);
+        const mb = document.getElementById('meeting-bar');
+        if (mb) mb.style.display = 'flex';
+        import('../../audio/playback.js').then(m => m.stopAudioPlayback());
+        import('../../audio/recorder.js').then(m => m.toggleMicrophone(false));
+        _log('info', '[MEETING] Modo reunión activado — micrófono desactivado');
+      } else if (meetingEnd) {
+        store.set('_meetingMode', false);
+        const mb = document.getElementById('meeting-bar');
+        if (mb) mb.style.display = 'none';
+        import('../../audio/recorder.js').then(m => m.toggleMicrophone(true));
+        _log('info', '[MEETING] Modo reunión desactivado — micrófono reactivado');
+      }
+
+      // Proactive reminder detection
+      const reminderWords = /\b(acuerd[aeo]|record[aá]|no se me olvid[ei]|teng[ao] que\s|cumpleaños|aniversario|mañana|próxim[ao]|la semana que viene|el (lunes|martes|miércoles|jueves|viernes|sábado|domingo))/i;
+      if (reminderWords.test(userText) && !userText.toLowerCase().includes('recordatorio') && !userText.toLowerCase().includes('recuérdame')) {
+        _log('info', '[REMINDER] Posible recordatorio detectado en: ' + userText.substring(0, 60));
+      }
+
       const isPromptRequest = /\b(prom|prompt)\b/i.test(userText);
       store.set('_silentTurn', !wasVoice || isPromptRequest);
       const history = store.get('conversationHistory');

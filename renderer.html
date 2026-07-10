@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' http://localhost:3001 https://generativelanguage.googleapis.com wss://generativelanguage.googleapis.com https://api.github.com https://api.openweathermap.org https://gmail.googleapis.com https://oauth2.googleapis.com https://www.googleapis.com https://accounts.google.com; img-src 'self' data:; media-src 'self' blob:; frame-src 'self' http://localhost:3001 https://accounts.google.com https://www.youtube.com; base-uri 'self'; object-src 'none';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' http://localhost:3001 https://generativelanguage.googleapis.com wss://generativelanguage.googleapis.com https://api.github.com https://api.openweathermap.org https://gmail.googleapis.com https://oauth2.googleapis.com https://www.googleapis.com https://accounts.google.com https://news.google.com https://html.duckduckgo.com https://api.stackexchange.com https://hn.algolia.com https://www.googleapis.com; img-src 'self' data:; media-src 'self' blob:; frame-src 'self' http://localhost:3001 https://accounts.google.com https://www.youtube.com; base-uri 'self'; object-src 'none';">
   <title>JARVIS</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Orbitron:wght@400;600;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
@@ -109,6 +109,7 @@
 
 
     <div class="conn-bar" id="conn-bar" style="display:none">Conexion perdida...</div>
+    <div id="meeting-bar" class="meeting-bar" style="display:none">🔇 MODO REUNIÓN — Jarvis en silencio. Decí "Jarvis, ya salí de la reunión" para reactivar.</div>
 
     <div class="app-body-container">
       <div class="app-main-view">
@@ -231,6 +232,9 @@
             <div id="msg-jarvis-part" class="msg-part jarvis-part" style="display: none;">
               <span class="msg-label jarvis-label">JARVIS</span>
               <p id="msg-jarvis-text" class="msg-text jarvis-text"></p>
+              <div class="msg-buttons" id="msg-buttons">
+                <button id="msg-cancel-btn" class="msg-cancel-btn" title="Cancelar respuesta" style="display:none">✕</button>
+              </div>
             </div>
             <!-- Indicador de actividad -->
             <div class="msg-indicator" id="msg-indicator"></div>
@@ -306,6 +310,7 @@
         <button class="tab-btn" data-tab="tab-rules">Reglas</button>
         <button class="tab-btn" data-tab="tab-api-keys">Proveedores</button>
         <button class="tab-btn" data-tab="tab-feedback">Soporte</button>
+        <button class="tab-btn" data-tab="tab-permissions">Permisos</button>
         <button class="tab-btn" data-tab="tab-advanced">Avanzado</button>
       </div>
       <div class="config-tab-content">
@@ -354,12 +359,22 @@
         </div>
         <div class="tab-pane" id="tab-voice">
           <div class="config-field">
+            <label>Género de voz</label>
+            <select id="voice-gender-select" class="config-select">
+              <option value="male">Masculina</option>
+              <option value="female">Femenina</option>
+            </select>
+          </div>
+          <div class="config-field">
             <label>Voz de Jarvis</label>
             <select id="voice-select" class="config-select">
-              <option value="Fenrir">Fenrir (Gemini)</option>
-              <option value="Puck">Puck (Gemini)</option>
-              <option value="Charon">Charon (Gemini)</option>
+              <option value="Fenrir">Fenrir (Masculino)</option>
+              <option value="Puck">Puck (Neutro)</option>
+              <option value="Charon">Charon (Grave)</option>
+              <option value="Aoede">Aoede (Femenino)</option>
+              <option value="Athena">Athena (Femenino)</option>
             </select>
+            <p class="setup-key-hint">Las voces femeninas (Aoede, Athena) están disponibles en Gemini. Seleccioná "Femenina" arriba para filtrar.</p>
           </div>
         </div>
         <div class="tab-pane" id="tab-rules">
@@ -385,6 +400,19 @@
             <button class="config-btn primary" id="config-test-gemini-btn">Probar Clave</button>
             <div id="config-gemini-status" class="setup-key-error" style="display:none; margin-top:8px;"></div>
           </div>
+          <div class="config-field" style="margin-top:16px; border-top:1px solid var(--border-color); padding-top:16px;">
+            <label>Google Search API Key</label>
+            <div class="setup-key-field">
+              <input type="password" id="config-google-api-key" class="setup-key-input" placeholder="AIzaSy...">
+              <button class="setup-toggle-btn" id="config-google-api-toggle" type="button">👁</button>
+            </div>
+            <p class="setup-key-hint">Consigue una API Key en <a href="https://console.cloud.google.com/apis/credentials" target="_blank">Google Cloud Console</a> y activa la <strong>Custom Search API</strong>.</p>
+          </div>
+          <div class="config-field">
+            <label>Google Search Engine ID (CX)</label>
+            <input type="text" id="config-google-cx" class="config-input" placeholder="0123456789abcdef">
+            <p class="setup-key-hint">Crea un buscador en <a href="https://cse.google.com/cse/all" target="_blank">Google CSE</a> (busca en toda la web, no solo un sitio) y copia el ID.</p>
+          </div>
         </div>
         <div class="tab-pane" id="tab-feedback">
           <div style="font-size:0.7rem; color:var(--text-dim); margin-bottom:8px; line-height: 1.3;">
@@ -401,6 +429,27 @@
           <div class="config-field" style="margin-top: 10px;">
             <button class="config-btn primary" id="config-send-feedback-btn">Enviar Reporte</button>
             <div id="config-feedback-status" class="int-result" style="display:none; margin-top:8px;"></div>
+          </div>
+        </div>
+        <div class="tab-pane" id="tab-permissions">
+          <div style="font-size:0.65rem; color:var(--text-dim); margin-bottom:8px;">
+            Controlá qué acciones puede ejecutar Jarvis automáticamente. Los permisos marcados no requieren confirmación. Desactivá los que quieras autorizar siempre.
+          </div>
+          <div class="perms-list" id="perms-list">
+            <label class="perm-item"><input type="checkbox" id="perm-open-browser" checked><span>Abrir navegador</span></label>
+            <label class="perm-item"><input type="checkbox" id="perm-launch-app" checked><span>Abrir aplicaciones</span></label>
+            <label class="perm-item"><input type="checkbox" id="perm-set-volume" checked><span>Cambiar volumen</span></label>
+            <label class="perm-item"><input type="checkbox" id="perm-file-operations" checked><span>Operaciones con archivos (leer/escribir/borrar)</span></label>
+            <label class="perm-item"><input type="checkbox" id="perm-execute-ps" checked><span>Ejecutar comandos PowerShell</span></label>
+            <label class="perm-item"><input type="checkbox" id="perm-download-youtube" checked><span>Descargar videos YouTube</span></label>
+            <label class="perm-item"><input type="checkbox" id="perm-edit-video" checked><span>Editar videos con FFmpeg</span></label>
+            <label class="perm-item"><input type="checkbox" id="perm-screenshot" checked><span>Tomar capturas de pantalla</span></label>
+            <label class="perm-item"><input type="checkbox" id="perm-keyboard" checked><span>Atajos de teclado (type_text/press_keys)</span></label>
+            <label class="perm-item"><input type="checkbox" id="perm-clipboard" checked><span>Acceso al portapapeles</span></label>
+            <label class="perm-item"><input type="checkbox" id="perm-find-files" checked><span>Buscar archivos en el sistema</span></label>
+            <label class="perm-item"><input type="checkbox" id="perm-system-stats" checked><span>Ver estadísticas del sistema</span></label>
+            <label class="perm-item"><input type="checkbox" id="perm-set-reminder" checked><span>Crear recordatorios y temporizadores</span></label>
+            <label class="perm-item"><input type="checkbox" id="perm-notifications" checked><span>Enviar notificaciones</span></label>
           </div>
         </div>
         <div class="tab-pane" id="tab-advanced">
@@ -431,7 +480,12 @@
           </div>
           <div class="config-field">
             <label>Sensibilidad del microfono</label>
-            <input type="range" id="vad-slider" min="100" max="800" step="10">
+            <input type="range" id="vad-slider" min="50" max="800" step="10">
+            <div style="display:flex;gap:6px;margin-top:4px;">
+              <button class="config-btn small" data-vad="50" style="font-size:0.6rem">Máxima (acento)</button>
+              <button class="config-btn small" data-vad="200" style="font-size:0.6rem">Normal</button>
+              <button class="config-btn small" data-vad="500" style="font-size:0.6rem">Solo voz fuerte</button>
+            </div>
           </div>
           <div class="config-field" style="flex-direction:row;align-items:center;gap:8px;">
             <button class="config-btn danger" id="clear-btn">Limpiar conversacion</button>

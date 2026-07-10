@@ -26,7 +26,7 @@ export async function handleLaunchApp(call) {
 
 export async function handleSearchWeb(call) {
   const query = call.args.query;
-  const engine = call.args.engine || 'duckduckgo';
+  const engine = call.args.engine || 'auto';
   return await searchWeb(query, engine);
 }
 

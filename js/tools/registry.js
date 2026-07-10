@@ -72,7 +72,7 @@ USE THIS when you need to:
 The user says: "busca", "investiga", "qué es", "quién es", "cuánto cuesta", "busca información", "find", "search", "look up", "what is", "who is"
 
 Returns structured text you can read and use in your response. Use fetch_url for deeper content from specific links.`,
-      parameters: { type: 'object', properties: { query: { type: 'string', description: 'Search query in the most natural language for the topic.' }, engine: { type: 'string', description: 'Engine: "duckduckgo" (general, default), "wikipedia" (encyclopedic facts), "youtube" (find videos).' } }, required: ['query'] }
+      parameters: { type: 'object', properties: { query: { type: 'string', description: 'Search query in the most natural language for the topic.' }, engine: { type: 'string', description: 'Engine: "auto" (Google if configured, else DuckDuckGo, default), "wikipedia" (encyclopedic facts), "youtube" (find videos).' } }, required: ['query'] }
     },
     {
       name: 'open_browser',
@@ -134,6 +134,13 @@ DO NOT use for websites (use open_browser) or installed apps by name (use launch
       name: 'get_news',
       description: 'Gets the latest news headlines from Google News RSS. Returns up to 10 headlines with sources. Use when user asks about current events, noticias, news.',
       parameters: { type: 'object', properties: { topic: { type: 'string', description: 'News topic: "technology", "world", "sports", "science", "business", "entertainment", "health", "politics". Leave empty for top headlines.' } } }
+    },
+    {
+      name: 'get_sports_news',
+      description: 'Dedicated sports news tool. Gets the latest sports news and match results for specific sports (fútbol, NFL, NBA, F1, tenis, etc.) or competitions (World Cup, Champions League, Premier League, etc.). Returns 5-8 clean headlines with brief analysis. Never freezes — uses strict timeout and length limits.',
+      parameters: { type: 'object', properties: {
+        sport: { type: 'string', description: 'Sport or competition (e.g. "fútbol", "World Cup", "NFL", "NBA", "F1", "Champions League"). Leave empty for all sports.' }
+      }, required: [] }
     },
     {
       name: 'deep_research',

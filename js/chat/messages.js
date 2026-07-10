@@ -237,6 +237,8 @@ export function handleJarvisTranscriptInstant(fullText) {
   _updateBubbleVisibility();
   _setupCopyButtonOnFinalText();
 
+  _showCancelButton(true);
+
   store.set('_currentTurnTextBuffer', fullText);
   _convLog('conv_response', fullText.substring(0, 500));
   store.set('_turnState', 'responding');
@@ -269,6 +271,7 @@ export function handleJarvisTextChunk(chunk) {
         _typewriterTarget = split.response;
         _typewriterIndex  = 0;
         _startTypewriter();
+        _showCancelButton(true);
       } else {
         // Update target — typewriter will catch up
         if (split.response.length > _typewriterTarget.length) {
@@ -383,12 +386,45 @@ export function _resetTurnState() {
   _setJarvisText('');
   _updateIndicator('none');
   _showCopyButton(false);
+  _showCancelButton(false);
   _hideProgress();
   if (_fadeTimer) { clearTimeout(_fadeTimer); _fadeTimer = null; }
   store.set('_currentTurnTextBuffer', '');
   store.set('_turnState', 'thinking');
   store.set('_thinkingPhaseStartTime', Date.now());
   updateThinkingPanel('');
+}
+
+// ─── 6.5 Cancel response ─────────────────────────────────
+export function cancelCurrentResponse() {
+  import('../audio/playback.js').then(async ({ stopAudioPlayback }) => {
+    stopAudioPlayback();
+    _stopTypewriter();
+    _typewriterTarget = '';
+    _typewriterIndex = 0;
+    _currentRole = null;
+    _setUserText('');
+    _setJarvisText('');
+    _updateIndicator('none');
+    _showCopyButton(false);
+    _hideProgress();
+    if (_fadeTimer) { clearTimeout(_fadeTimer); _fadeTimer = null; }
+    store.set('_currentTurnTextBuffer', '');
+    store.set('_turnState', 'thinking');
+    store.set('_jarvisSpeechStarted', false);
+    store.set('_turnTextShown', false);
+    store.set('toolCount', 0);
+    updateThinkingPanel('');
+    _log('info', 'Respuesta cancelada por el usuario');
+    // Reconectar WebSocket para limpiar estado del servidor
+    try {
+      const { connectWebSocket } = await import('../Core/Connection/manager.js');
+      if (window.ws) { window.ws.close(1000); window.ws = null; }
+      await connectWebSocket();
+    } catch (e) {
+      _log('warn', `Cancel reconnect: ${e.message}`);
+    }
+  });
 }
 
 // ─── 7. Close active Jarvis bubble (turn complete) ───────
@@ -442,6 +478,7 @@ export function _closeActiveJarvisBubble() {
 
   store.set('_currentTurnTextBuffer', '');
   store.set('_turnState', 'thinking');
+  _showCancelButton(false);
   updateThinkingPanel('');
 
   // Auto-fade after 15s inactivity
@@ -449,6 +486,33 @@ export function _closeActiveJarvisBubble() {
   _fadeTimer = setTimeout(() => {
     _fadeOutMsg(() => _clearMsg());
   }, 15000);
+}
+
+// ─── Cancel button setup ──────────────────────────────
+function _setupCancelButton() {
+  const btn = document.getElementById('msg-cancel-btn');
+  if (!btn) return;
+  // Remove old listener by cloning
+  const newBtn = btn.cloneNode(true);
+  btn.parentNode.replaceChild(newBtn, btn);
+  newBtn.addEventListener('click', () => cancelCurrentResponse());
+  // Escape key to cancel
+  const escHandler = (e) => {
+    if (e.key === 'Escape' && store.get('_turnState') === 'responding') {
+      cancelCurrentResponse();
+    }
+  };
+  document.removeEventListener('keydown', escHandler);
+  document.addEventListener('keydown', escHandler);
+}
+
+// Show cancel button when Jarvis is responding
+function _showCancelButton(show) {
+  const btn = document.getElementById('msg-cancel-btn');
+  if (btn) {
+    btn.style.display = show ? 'inline-block' : 'none';
+    _setupCancelButton();
+  }
 }
 
 // ─── Copy button for Jarvis responses ──────────────────

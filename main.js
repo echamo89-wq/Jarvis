@@ -121,7 +121,7 @@ function _sendSplashProgress(pct, text) {
 function _showMainWindowFallback() {
   if (_splashPreloadFinished) return;
   _splashPreloadFinished = true;
-  console.warn('\x1b[33m[SPLASH] Límite de carga excedido (>8.5s). Forzando despliegue de interfaz principal.\x1b[0m');
+  console.warn('\x1b[33m[SPLASH] Límite de carga excedido (>5s). Forzando despliegue de interfaz principal.\x1b[0m');
   
   if (_splashTimeout) {
     clearTimeout(_splashTimeout);
@@ -139,7 +139,7 @@ function _showMainWindowFallback() {
 
 function createSplashWindow() {
   _splashPreloadFinished = false;
-  _splashTimeout = setTimeout(_showMainWindowFallback, 8500);
+  _splashTimeout = setTimeout(_showMainWindowFallback, 5000);
 
   _splashWindow = new BrowserWindow({
     width: 380,

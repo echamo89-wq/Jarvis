@@ -84,6 +84,42 @@ export async function handleGetNews(call) {
   return result;
 }
 
+export async function handleGetSportsNews(call) {
+  const sport = call.args.sport || '';
+  const query = sport ? `${sport}+sports+news` : 'sports+news';
+  const url = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=es&gl=MX&ceid=MX:es`;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeout);
+    const text = await res.text();
+    const items = text.match(/<item>[\s\S]*?<\/item>/gi) || [];
+    const headlines = items.map(item => {
+      const title = (item.match(/<title>([^<]*)<\/title>/i) || [,''])[1].replace(/<!\[CDATA\[|\]\]>/g, '').trim();
+      const source = (item.match(/<source[^>]*>([^<]*)<\/source>/i) || [,''])[1].trim();
+      return title ? `${title} [${source || 'Google News'}]` : '';
+    }).filter(h => h).slice(0, 8);
+    if (headlines.length === 0) return { success: false, output: 'No se encontraron noticias deportivas.' };
+    const output = (sport ? `=== ${sport.toUpperCase()} — NOTICIAS ===` : '=== NOTICIAS DEPORTIVAS ===') + '\n\n' + headlines.join('\n\n');
+    try {
+      const { showInfoPanel } = await import('../../ui/info-panel.js');
+      showInfoPanel({
+        type: 'news',
+        title: (sport || 'DEPORTES').toUpperCase(),
+        source: 'Google News',
+        subtitle: sport ? `Noticias deportivas: ${sport}` : 'Últimas noticias deportivas',
+        keyPoints: headlines.slice(0, 5),
+        rawContent: output
+      });
+    } catch (_) {}
+    return { success: true, output };
+  } catch (e) {
+    clearTimeout(timeout);
+    return { success: false, output: `Error obteniendo noticias deportivas: ${e.message}` };
+  }
+}
+
 export async function handleYoutubeAction(call) {
   const action = call.args.action || '';
   const query = call.args.query || '';

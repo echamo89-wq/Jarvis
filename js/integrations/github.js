@@ -253,6 +253,63 @@ export const github = {
           private: { type: 'boolean', description: 'true = hacer privado, false = hacer público' },
           homepage: { type: 'string', description: 'Nueva URL de homepage' }
         }, required: ['owner', 'repo'] }
+      },
+      {
+        name: 'github_get_orgs',
+        description: 'INVESTIGACIÓN COMPLETA: Lista TODAS las organizaciones a las que pertenece el usuario autenticado. Devuelve login, descripción, email, ubicación, repos públicos, seguidores, URL. Incluye búsqueda multi-página automática.',
+        parameters: { type: 'object', properties: {}, required: [] }
+      },
+      {
+        name: 'github_get_repo_contents',
+        description: 'INVESTIGACIÓN: Lista el contenido de un directorio en un repositorio (archivos y subdirectorios). Devuelve nombre, tipo (file/dir), tamaño, URL de descarga. Sin parámetro path, muestra la raíz.',
+        parameters: { type: 'object', properties: {
+          owner: { type: 'string', description: 'Dueño del repo' },
+          repo: { type: 'string', description: 'Nombre del repositorio' },
+          path: { type: 'string', description: 'Ruta del directorio (default: raíz del repo)' },
+          ref: { type: 'string', description: 'Rama o tag (default: rama default)' }
+        }, required: ['owner', 'repo'] }
+      },
+      {
+        name: 'github_get_repo_commits',
+        description: 'INVESTIGACIÓN: Lista los commits recientes de un repositorio. Devuelve SHA, autor, fecha, mensaje del commit. Ideal para ver actividad reciente del proyecto.',
+        parameters: { type: 'object', properties: {
+          owner: { type: 'string', description: 'Dueño del repo' },
+          repo: { type: 'string', description: 'Nombre del repositorio' },
+          branch: { type: 'string', description: 'Rama específica (default: rama default)' },
+          per_page: { type: 'integer', description: 'Máx resultados (default: 10, max: 50)' }
+        }, required: ['owner', 'repo'] }
+      },
+      {
+        name: 'github_get_repo_contributors',
+        description: 'INVESTIGACIÓN: Lista los contribuidores de un repositorio ordenados por número de contribuciones. Devuelve login, contribuciones, tipo (User/Bot), URL del perfil.',
+        parameters: { type: 'object', properties: {
+          owner: { type: 'string', description: 'Dueño del repo' },
+          repo: { type: 'string', description: 'Nombre del repositorio' },
+          per_page: { type: 'integer', description: 'Máx resultados (default: 10, max: 50)' }
+        }, required: ['owner', 'repo'] }
+      },
+      {
+        name: 'github_get_user_events',
+        description: 'INVESTIGACIÓN: Obtiene la actividad reciente del usuario autenticado en GitHub. Devuelve tipo de evento (Push, Create, Issues, PR, Star, Fork, etc.), repositorio, fecha, y detalles del evento.',
+        parameters: { type: 'object', properties: {
+          per_page: { type: 'integer', description: 'Máx resultados (default: 10, max: 30)' }
+        }, required: [] }
+      },
+      {
+        name: 'github_get_repo_branches',
+        description: 'INVESTIGACIÓN: Lista todas las ramas de un repositorio. Devuelve nombre de rama, SHA del commit más reciente, y si es la rama protegida/default.',
+        parameters: { type: 'object', properties: {
+          owner: { type: 'string', description: 'Dueño del repo' },
+          repo: { type: 'string', description: 'Nombre del repositorio' }
+        }, required: ['owner', 'repo'] }
+      },
+      {
+        name: 'github_get_repo_languages',
+        description: 'INVESTIGACIÓN: Obtiene el desglose de lenguajes de programación de un repositorio con porcentajes. Devuelve los lenguajes y los bytes de código de cada uno.',
+        parameters: { type: 'object', properties: {
+          owner: { type: 'string', description: 'Dueño del repo' },
+          repo: { type: 'string', description: 'Nombre del repositorio' }
+        }, required: ['owner', 'repo'] }
       }
     ];
   },
@@ -459,6 +516,155 @@ export const github = {
         if (!r.success) return r;
         const changes = Object.keys(body).map(k => `${k}: ${body[k]}`).join(', ');
         return { success: true, output: `✅ Repositorio ${args.owner}/${args.repo} actualizado.\nCambios: ${changes}\n🔗 ${r.data.html_url}` };
+      }
+
+      case 'github_get_orgs': {
+        const orgs = await _deepSearch('/user/orgs', config, 2, 5);
+        if (orgs.length === 0) return { success: true, output: 'No perteneces a ninguna organización.' };
+        let out = `=== ORGANIZACIONES (${orgs.length}) ===\n\n`;
+        const lines = orgs.map(o => {
+          let s = `🏢 ${o.login}\n   ${o.description || 'Sin descripción'}`;
+          if (o.location) s += `\n   📍 ${o.location}`;
+          if (o.email) s += `\n   📧 ${o.email}`;
+          s += `\n   📦 Repos públicos: ${o.public_repos || 0}`;
+          s += `\n   👥 Seguidores: ${o.followers || 0}`;
+          s += `\n   🔗 ${o.html_url || `https://github.com/${o.login}`}`;
+          return s;
+        });
+        out += lines.join('\n\n---\n\n');
+        return { success: true, output: out };
+      }
+
+      case 'github_get_repo_contents': {
+        let url = `/repos/${args.owner}/${args.repo}/contents`;
+        if (args.path) url += `/${encodeURIComponent(args.path)}`;
+        if (args.ref) url += `?ref=${encodeURIComponent(args.ref)}`;
+        const r = await _ghFetch(url, config);
+        if (!r.success) return r;
+        const items = Array.isArray(r.data) ? r.data : [r.data];
+        if (items.length === 0) return { success: true, output: 'Directorio vacío.' };
+        let out = `=== 📁 ${args.path || 'raíz'} de ${args.owner}/${args.repo} (${items.length} items) ===\n\n`;
+        const dirs = items.filter(i => i.type === 'dir');
+        const files = items.filter(i => i.type === 'file');
+        if (dirs.length > 0) {
+          out += '📁 Directorios:\n';
+          for (const d of dirs) out += `  📂 ${d.name}\n`;
+          out += '\n';
+        }
+        if (files.length > 0) {
+          out += '📄 Archivos:\n';
+          for (const f of files) out += `  📄 ${f.name} (${(f.size / 1024).toFixed(1)} KB)\n`;
+          out += '\n';
+        }
+        const others = items.filter(i => i.type !== 'dir' && i.type !== 'file');
+        if (others.length > 0) {
+          out += '🔗 Otros:\n';
+          for (const o of others) out += `  🔗 ${o.name} (${o.type})\n`;
+        }
+        return { success: true, output: out };
+      }
+
+      case 'github_get_repo_commits': {
+        const per = Math.min(args.per_page || 10, 50);
+        let url = `/repos/${args.owner}/${args.repo}/commits?per_page=${per}`;
+        if (args.branch) url += `&sha=${encodeURIComponent(args.branch)}`;
+        const r = await _ghFetch(url, config);
+        if (!r.success) return r;
+        const commits = r.data || [];
+        if (commits.length === 0) return { success: true, output: 'Sin commits.' };
+        let out = `=== Commits recientes de ${args.owner}/${args.repo} (${commits.length}) ===\n\n`;
+        for (const c of commits) {
+          const sha = c.sha.substring(0, 7);
+          const msg = (c.commit.message || '').split('\n')[0];
+          const author = c.commit.author?.name || c.author?.login || 'Desconocido';
+          const date = c.commit.author?.date ? new Date(c.commit.author.date).toLocaleDateString('es-MX') : '';
+          out += `🔹 [${sha}] ${msg}\n   👤 ${author} 📅 ${date}\n\n`;
+        }
+        return { success: true, output: out };
+      }
+
+      case 'github_get_repo_contributors': {
+        const per = Math.min(args.per_page || 10, 50);
+        const r = await _ghFetch(`/repos/${args.owner}/${args.repo}/contributors?per_page=${per}`, config);
+        if (!r.success) return r;
+        const contribs = r.data || [];
+        if (contribs.length === 0) return { success: true, output: 'Sin contribuidores.' };
+        const total = contribs.reduce((s, c) => s + c.contributions, 0);
+        let out = `=== Contribuidores de ${args.owner}/${args.repo} (${contribs.length}, ${total} contribuciones) ===\n\n`;
+        for (const c of contribs) {
+          out += `👤 ${c.login} — ${c.contributions} contribuciones\n`;
+          if (c.type === 'Bot') out += '   🤖 Bot\n';
+          out += `   🔗 ${c.html_url}\n\n`;
+        }
+        return { success: true, output: out };
+      }
+
+      case 'github_get_user_events': {
+        const per = Math.min(args.per_page || 10, 30);
+        const userResult = await _ghFetch('/user', config);
+        if (!userResult.success) return { success: false, output: 'No se pudo obtener el usuario autenticado.' };
+        const username = userResult.data.login;
+        const r = await _ghFetch(`/users/${username}/events?per_page=${per}`, config);
+        if (!r.success) return r;
+        const events = r.data || [];
+        if (events.length === 0) return { success: true, output: 'Sin actividad reciente.' };
+        const EVENT_ICONS = {
+          'PushEvent': '📤', 'CreateEvent': '➕', 'DeleteEvent': '🗑️',
+          'IssuesEvent': '⚠️', 'IssueCommentEvent': '💬', 'PullRequestEvent': '🔀',
+          'PullRequestReviewEvent': '👁️', 'PullRequestReviewCommentEvent': '💬',
+          'WatchEvent': '⭐', 'ForkEvent': '🔱', 'ReleaseEvent': '📦',
+          'MemberEvent': '👤', 'PublicEvent': '🌍', 'SponsorshipEvent': '❤️'
+        };
+        let out = `=== Actividad reciente de GitHub (${events.length} eventos) ===\n\n`;
+        for (const e of events) {
+          const icon = EVENT_ICONS[e.type] || '🔔';
+          const repo = e.repo?.name || 'desconocido';
+          const date = e.created_at ? new Date(e.created_at).toLocaleString('es-MX') : '';
+          out += `${icon} ${e.type.replace('Event', '')}\n   📦 ${repo}\n   📅 ${date}\n`;
+          if (e.payload?.action) out += `   🔄 ${e.payload.action}\n`;
+          if (e.payload?.commits?.length) out += `   📝 ${e.payload.commits.length} commit(s)\n`;
+          out += '\n';
+        }
+        return { success: true, output: out };
+      }
+
+      case 'github_get_repo_branches': {
+        const r = await _ghFetch(`/repos/${args.owner}/${args.repo}/branches?per_page=100`, config);
+        if (!r.success) return r;
+        const branches = r.data || [];
+        if (branches.length === 0) return { success: true, output: 'Sin ramas.' };
+        let out = `=== Ramas de ${args.owner}/${args.repo} (${branches.length}) ===\n\n`;
+        for (const b of branches) {
+          const isDefault = b.name === 'main' || b.name === 'master';
+          out += `🌿 ${b.name}${isDefault ? ' (⭐ default)' : ''}\n   📌 SHA: ${b.commit.sha.substring(0, 7)}\n\n`;
+        }
+        return { success: true, output: out };
+      }
+
+      case 'github_get_repo_languages': {
+        const r = await _ghFetch(`/repos/${args.owner}/${args.repo}/languages`, config);
+        if (!r.success) return r;
+        const langs = r.data || {};
+        const entries = Object.entries(langs);
+        if (entries.length === 0) return { success: true, output: 'Sin lenguajes detectados.' };
+        const total = entries.reduce((s, [, v]) => s + v, 0);
+        let out = `=== Lenguajes de ${args.owner}/${args.repo} ===\n\n`;
+        entries.sort((a, b) => b[1] - a[1]);
+        const LANG_ICONS = {
+          'JavaScript': '🟨', 'TypeScript': '🔵', 'Python': '🐍', 'Java': '☕',
+          'Go': '🔷', 'Rust': '🦀', 'C': '⚙️', 'C++': '⚡', 'C#': '💜',
+          'Ruby': '💎', 'PHP': '🐘', 'HTML': '🌐', 'CSS': '🎨', 'Swift': '🍎',
+          'Kotlin': '🟣', 'Dart': '🎯', 'Shell': '🐚', 'PowerShell': '💻',
+          'Lua': '🌙', 'R': '📊', 'Scala': '🔴', 'Perl': '🐪'
+        };
+        for (const [lang, bytes] of entries) {
+          const pct = ((bytes / total) * 100).toFixed(1);
+          const icon = LANG_ICONS[lang] || '📄';
+          const barLen = Math.max(1, Math.round(pct / 5));
+          const bar = '█'.repeat(barLen) + '░'.repeat(Math.max(0, 20 - barLen));
+          out += `${icon} ${lang}: ${bar} ${pct}% (${(bytes / 1024).toFixed(0)} KB)\n`;
+        }
+        return { success: true, output: out };
       }
 
       default:

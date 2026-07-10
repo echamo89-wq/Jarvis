@@ -648,6 +648,20 @@ async function _initApp() {
   });
 }
 
+// ─── Global error handlers (previene pantalla blanca) ─────────────────────
+window.addEventListener('error', (e) => {
+  console.error('[GLOBAL ERROR]', e.error || e.message || e);
+  if (window.electronAPI?.logToTerminal)
+    window.electronAPI.logToTerminal('error', `[GLOBAL ERROR] ${e.error?.message || e.message || 'unknown'}`);
+  e.preventDefault();
+});
+window.addEventListener('unhandledrejection', (e) => {
+  console.error('[UNHANDLED REJECTION]', e.reason?.message || e.reason || 'unknown');
+  if (window.electronAPI?.logToTerminal)
+    window.electronAPI.logToTerminal('error', `[UNHANDLED REJECTION] ${e.reason?.message || e.reason || 'unknown'}`);
+  e.preventDefault();
+});
+
 // ─── Boot: safe against ES-module / DOMContentLoaded race ──────────────────
 // ES modules are deferred, so DOMContentLoaded *may* have already fired by
 // the time this script evaluates. Check readyState before adding the listener.

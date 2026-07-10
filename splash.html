@@ -387,7 +387,7 @@
 
   <!-- Botón de inicio interactivo -->
   <button class="start-btn" id="start-btn" onclick="startProtocol()">
-    <span>INICIAR PROTOCOLO v2.2.0</span>
+    <span>INICIAR PROTOCOLO v2.3.0</span>
   </button>
 
   <!-- Contexto -->
@@ -404,7 +404,7 @@
     <div class="ctx-sep"></div>
     <div class="ctx-item">
       <span class="ctx-label">Versión</span>
-      <span class="ctx-value" id="ctx-version">v2.2.0</span>
+      <span class="ctx-value" id="ctx-version">v2.3.0</span>
     </div>
   </div>
 
@@ -443,7 +443,7 @@
       const btnSpan = document.querySelector('#start-btn span');
       if (btnSpan) btnSpan.textContent = `INICIAR PROTOCOLO v${pjson.version}`;
     } catch(e) {
-      document.getElementById('ctx-version').textContent = 'v2.2.0';
+      document.getElementById('ctx-version').textContent = 'v2.3.0';
     }
 
     // ── Detección de OS

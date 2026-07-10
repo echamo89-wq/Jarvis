@@ -45,44 +45,64 @@ export function _separateThinkingAndResponse(text) {
   const thinkTagRegex = /<think>([\s\S]*?)<\/think>/gi;
   const thinkingParts = [];
   let cleanText = text.replace(thinkTagRegex, (_, inner) => { thinkingParts.push(inner.trim()); return ''; });
-  cleanText = cleanText.replace(/^\*\*[^*]+\*\*\s*/gm, '').replace(/\*\*/g, '');
-  const REASONING_PATTERNS = [
+
+  const INTERNAL_NARRATIVE = [
+    // Español — narrativa de proceso
     /^(voy a|vamos a|necesito|debo|tengo que|usaré|mi plan es|procedo a)/i,
     /^para (responder|contestar|obtener|encontrar|saber|verificar|comprobar)/i,
-    /^(analizando|revisando|consultando|verificando|comprobando|determinando|considerando|evaluando|pensando|planeando|examinando)/i,
+    /^(analizando|revisando|consultando|verificando|comprobando|determinando|considerando|evaluando|pensando|planeando|examinando|procesando|preparando)/i,
     /^(el usuario|la usuaria|la consulta|la petición|la pregunta|el mensaje).*(ha |está |quiere |pregunta |dice |solicita)/i,
-    /^(primero |luego |finalmente |después |antes ).*(voy|vamos|necesito|debo|procedo|paso)/i,
-    /^déjame|permíteme|dame un momento|un momento/i,
-    /^bueno,? (voy|vamos|déjame|procedo)/i,
-    /^ok,? (voy|vamos|déjame|procedo)/i,
-    /^muy bien,? (voy|vamos)/i,
-    /^(como |tal que |de manera que |para que ).*(pueda|puedo|necesito)/i,
-    /^(I'm (going|now|currently|focusing|aiming|about|trying)|I will|I'll|I need|I should|let me|my plan is|I think|I believe|I'd like|my (goal|aim|focus|objective|next step) is)/i,
-    /^(I've|i have) (refined|crafted|created|generated|focused|analyzed|determined|identified|found|decided|now|just)/i,
-    /^i (focused|analyzed|determined|identified|looked|started|began|decided|chose|selected|took|made|considered|thought|realized|noticed)/i,
-    /^(analyzing|determining|the user|i understand|i'm about|let's|first|second|finally|next|now (i'm|i will|let's|i've|i have))/i,
-    /^(to (respond|answer|get|find|check|verify|determine|look|create|generate|craft|produce|formulate))/i,
-    /^(the user|the question|the request|the query).*(has |is |wants |asks |says|asked|wanted|said)/i,
-    /^(the|this|that) (spanish|english|french|german|italian|portuguese|user's|original) (phrase|word|sentence|request|query|question).*(translate|mean|refers|represents|indicates|express)/i,
-    /^(crafting|creating|generating|formulating|building|preparing|working on|putting together|writing|developing|designing|refining|adjusting|modifying|improving|enhancing|reviewing|checking|finalizing)/i,
-    /^(my next|the next|next,? i|now i('?ve| will| can| need| should| want| must| have to))/i,
-    /\b(tool result|function response|json data|api call|fetching|searching|here is (my|the|a) (response|answer|prompt|result))\b/i,
+    /^déjame|permíteme|dame un momento/i,
     /^considerando|revisando datos|procesando|preparando/i,
+
+    // Inglés — "I'm doing X", "I've done Y", "My plan..."
+    /^(i'm |i am |i will |i'll |i've |i have |i need to |i should |i must |i can |i want |i\'?d like |let me |my (plan|goal|aim|focus|objective|next step|priority|approach|strategy|method) (is|was|will be))/i,
+    /^(i (focused|analyzed|determined|identified|looked|started|began|decided|chose|selected|took|made|considered|thought|realized|noticed|understood|recognized|examined|checked|verified|confirmed|found|discovered|noted|attempted|tried|attempted|proceeded|continued|moved|switched|pivoted|shifted))/i,
+    /^(the (user|question|request|query|input|message|command|instruction|task|goal)).*(has |is |was |wants |asks |says |asked |wanted |said |requested|indicates|refers|represents|expresses|can be|should be|needs|requires)/i,
+    /^(analyzing|determining|identifying|checking|verifying|confirming|examining|considering|evaluating|assessing|reviewing|looking|searching|fetching|retrieving|gathering|collecting|compiling|preparing|formulating|crafting|creating|generating|building|writing|developing|designing|refining|adjusting|modifying|improving|enhancing|finalizing|planning|outlining|summarizing)/i,
+    /^(to (respond|answer|get|find|check|verify|determine|look|create|generate|craft|produce|formulate|address|handle|process|understand|identify|confirm|ensure|make|provide|give|offer|present|show|demonstrate|explain|clarify|elaborate))/i,
+    /^(my next|the next|next,? i|now i('?ve| will| can| need| should| want| must| have to|am going))/i,
+    /^(the|this|that) (spanish|english|french|german|response|answer|prompt|text|phrase|word|sentence) (should|will|needs|must|can|could|would)/i,
+
+    // Frases completas de autodiálogo
+    /^i('ve| have) (determined|found|decided|concluded|identified|noticed|realized|understood) (that |the |this |it )/i,
+    /^(this tool|the tool|this function|the function) (seems|looks|is|was|has|appears|should|will|can)/i,
+    /^(i('?ve| have) (hit|encountered|run into|experienced|noticed|seen) (a |an |some ))/i,
+    /^(my response|my answer|the response|the answer|the output) (should|will|would|could|needs|must|is|was)/i,
+    /^(the (most|best|correct|right|proper|ideal|perfect|optimal|appropriate|suitable).*(way|approach|method|solution|course|action|step).*(is|would be|will be|should be))/i,
+    /^(this (is|was|has been|will be) (a |an |the |my ))/i,
+    /^(based on|given|considering|looking at|according to|following|after).*(the (user|request|query|input|result|output|data|information|context|situation|analysis))/i,
+    /^(i'll (now|then|next|proceed|start|begin|attempt|try|go ahead|continue|move))/i,
+    /^(?:i'?ve|i have) (decided|chosen|opted|selected|elected) to/i,
+    /^(the (next|following|subsequent) (step|action|phase|stage|part|section) (is|will be|should be|would be))/i,
+    /^(here is|here's|this is|that is) (my|the|a) (analysis|assessment|evaluation|breakdown|summary|overview|plan|approach|strategy|response|answer|reply)/i,
+    /^(i (interpret|understand|believe|think|consider|view|see|perceive|recognize|acknowledge) (this|that|the|it|your|the user's))/i,
+
+    // Headers de narrativa interna
+    /^\*\*[^*]+\*\*\s*$/,
+    /^(clarifying|interpreting|processing|analyzing|determining|investigating|researching|searching|planning|preparing|formulating|crafting|creating|generating|building|writing|developing|designing|refining|adjusting|improving|enhancing|finalizing) /i,
   ];
+
   const sentences = cleanText.split(/(?<=[.!?])\s+/);
   const responseLines = [];
   for (const sent of sentences) {
     const s = sent.trim();
     if (!s) continue;
-    const secondPerson = /\b(te |le |les |tú |usted |you |your |señor|señora|amigo)/i.test(s);
-    if (secondPerson) { responseLines.push(s); continue; }
-    const isReasoning = REASONING_PATTERNS.some(p => p.test(s));
-    if (isReasoning) {
-      const hasIntentToRespond = /\b(I'?ll|I'?m going|let me|I will)\b.*\b(you|your|for|this|here|the)\b/i.test(s);
-      if (hasIntentToRespond) responseLines.push(s);
-      else thinkingParts.push(s);
+
+    // Skip markdown headers of self-narration (e.g. **Analyzing...**, **Processing...**)
+    if (/^\*\*[^*]+\*\*$/.test(s.replace(/[.!?]/g, '').trim())) { thinkingParts.push(s); continue; }
+
+    // If it's directly addressing the user (has 2nd person pronouns), it's response
+    const secondPerson = /\b(te |le |les |tú |usted |you\b|your\b|señor|señora|amigo)/i.test(s);
+
+    // Check if sentence is internal narration
+    const isNarration = INTERNAL_NARRATIVE.some(p => p.test(s));
+
+    if (isNarration && !secondPerson) {
+      thinkingParts.push(s);
+    } else {
+      responseLines.push(s);
     }
-    else responseLines.push(s);
   }
   return {
     thinking: thinkingParts.join(' ').trim(),
