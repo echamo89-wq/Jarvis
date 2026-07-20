@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>JARVIS — AI Personal Assistant for Windows</title>
-  <meta name="description" content="JARVIS MK.II — Asistente de IA de voz para Windows. Powered by Gemini Live. 100% local, sin suscripciones, control total.">
-  <meta property="og:title" content="JARVIS MK.II — AI Personal Assistant">
+  <meta name="description" content="JARVIS JS — Asistente de IA de voz para Windows. Powered by Gemini Live. 100% local, sin suscripciones, control total.">
+  <meta property="og:title" content="JARVIS JS — AI Personal Assistant">
   <meta property="og:description" content="Asistente de voz con IA, control del sistema, y más. Powered by Gemini Live.">
   <meta property="og:image" content="https://github.com/echamo89-wq/Jarvis/raw/main/build/icon.png">
   <meta name="theme-color" content="#00bfff">
@@ -448,8 +448,8 @@
     </svg>
   </div>
 
-  <p class="hero-version">// MK.II — VERSIÓN 2.3.0</p>
-  <h1 class="hero-title">JARVIS</h1>
+  <p class="hero-version">// v3.0.0 — JARVIS JS</p>
+  <h1 class="hero-title">JARVIS JS</h1>
   <p class="hero-subtitle">AI Personal Assistant · Windows</p>
   <p class="hero-desc">
     Tu asistente de IA personal para Windows. <strong>Control por voz en tiempo real</strong>,
@@ -458,9 +458,9 @@
   </p>
 
   <div class="cta-group">
-      <a id="download-btn" href="https://github.com/echamo89-wq/Jarvis/releases/latest/download/Jarvis.Setup.2.3.0.exe"
+    <a id="download-btn" href="https://github.com/echamo89-wq/Jarvis/releases/latest/download/Jarvis.Setup.3.0.0.exe"
        class="btn-primary" download>
-      ⬇ Descargar para Windows
+      ⬇ Descargar v3.0.0 para Windows
     </a>
     <a href="https://github.com/echamo89-wq/Jarvis" target="_blank" class="btn-secondary">
       ★ Ver en GitHub
@@ -609,18 +609,31 @@
     <h2 class="section-title reveal">Changelog</h2>
     <div class="changelog-list">
       <div class="cl-item reveal">
-        <span class="cl-version">v2.1.0</span>
+        <span class="cl-version">v3.0.0</span>
+        <div class="cl-content">
+          <strong>Lanzamiento mayor — JARVIS JS rebranding y correcciones críticas</strong>
+          <ul>
+            <li>Renombrado de JARVIS JJS a JARVIS JS en toda la interfaz</li>
+            <li>Splash screen: botón de inicio ya no se congela (fix process sandbox)</li>
+            <li>DevTools (F12 / Ctrl+Shift+I) habilitados en producción para diagnóstico</li>
+            <li>Logs de UI movidos a directorio seguro de userData (compatible con ASAR)</li>
+            <li>Instrucción de sistema actualizada con identidad JARVIS JS</li>
+            <li>Arquitectura modular con Kernel, JOS v1.0, motor de recordatorios y guardián de conexión</li>
+            <li>Auto-updater integrado con electron-updater vía GitHub Releases</li>
+            <li>Sistema de feedback con captura de pantalla y envío automático</li>
+          </ul>
+        </div>
+      </div>
+      <div class="cl-item reveal">
+        <span class="cl-version old">v2.3.0</span>
         <div class="cl-content">
           <strong>Estabilidad, limpieza y refactor de arquitectura</strong>
           <ul>
             <li>Fix crítico: eliminado crash al cerrar la app (ReferenceError: localAudioProc)</li>
             <li>Eliminados todos los procesos muertos del ciclo de vida de Electron</li>
-            <li>Limpieza completa de variables obsoletas (localAudioProc, _ttsProc, _oauthServer)</li>
             <li>Refactor de autenticación: flujo simplificado sin OAuth ni tiers</li>
             <li>Onboarding rediseñado con animaciones mejoradas</li>
             <li>Splash screen actualizada con nuevo UI holográfico y versión dinámica</li>
-            <li>Eliminados eventos IPC obsoletos y APIs muertas del preload</li>
-            <li>Schema de base de datos limpiado (eliminadas columnas tier, daily_messages)</li>
           </ul>
         </div>
       </div>
@@ -631,7 +644,6 @@
           <ul>
             <li>Nueva burbuja HUD holográfica con typewriter animado</li>
             <li>Soporte UNIX nativo y selector de OS en splash</li>
-            <li>Integración del contexto del SO en las instrucciones de sistema</li>
             <li>Lanzador de aplicaciones robusto en cascada</li>
             <li>Splash screen cinematográfica con reactor animado</li>
           </ul>
@@ -648,9 +660,9 @@
   <h2>Empieza ahora. Es gratis.</h2>
   <p>Open source, MIT license. Sin límites. Sin suscripciones.</p>
   <div class="cta-group">
-    <a href="https://github.com/echamo89-wq/Jarvis/releases/latest/download/Jarvis.Setup.2.3.0.exe"
+    <a href="https://github.com/echamo89-wq/Jarvis/releases/latest/download/Jarvis.Setup.3.0.0.exe"
        class="btn-primary" download>
-      ⬇ Descargar JARVIS v2.3.0
+      ⬇ Descargar JARVIS JS v3.0.0
     </a>
     <a href="https://github.com/echamo89-wq/Jarvis/releases" target="_blank" class="btn-secondary">
       Ver todos los releases

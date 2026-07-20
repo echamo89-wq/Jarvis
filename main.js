@@ -6,9 +6,13 @@ const WebSocket = require('ws');
 const http = require('http');
 const https = require('https');
 const crypto = require('crypto');
+const { registerAllIpc } = require('./main/ipc/register-all');
 
 const { registerSecureStorageIpc, loadCredentials, saveCredentials } = require('./main/secure-storage');
 const { registerPsIpc } = require('./main/ps-executor');
+const { registerAppFinder } = require('./main/app-finder');
+const { registerYtdlIpc } = require('./main/ytdl-executor');
+const { setupUpdater, checkForUpdatesSilent } = require('./main/updater');
 
 // ─── Capturar errores no manejados en el proceso principal ───
 process.on('uncaughtException', (err) => {
@@ -20,12 +24,25 @@ process.on('unhandledRejection', (reason) => {
 });
 
 try {
-  const env = fs.readFileSync('.env', 'utf8');
-  env.split('\n').forEach(line => {
-    const i = line.indexOf('=');
-    if (i > 0) process.env[line.slice(0, i).trim()] = line.slice(i + 1).trim();
-  });
-} catch(e) {}
+  const dotenv = require('dotenv');
+  dotenv.config();
+} catch(e) {
+  // Fallback: parse manual si dotenv no está disponible
+  try {
+    const env = fs.readFileSync('.env', 'utf8');
+    env.split('\n').forEach(line => {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) return;
+      const match = trimmed.match(/^([^=#\s]+)=\s*(.*)$/);
+      if (!match) return;
+      let value = match[2];
+      if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+        value = value.slice(1, -1);
+      }
+      process.env[match[1].trim()] = value;
+    });
+  } catch(e) { /* no .env file */ }
+}
 
 // Precargar API Key desde almacenamiento seguro si no existe en .env
 try {
@@ -39,7 +56,7 @@ try {
 
 let geminiWs = null;
 let _childProcesses = [];  // track ad-hoc spawned processes for cleanup
-let _backendServerProc = null;
+
 
 function _trackChildProcess(proc) {
   if (proc && typeof proc.kill === 'function') {
@@ -51,59 +68,7 @@ function _trackChildProcess(proc) {
   return proc;
 }
 
-function _startBackendServer() {
-  // En producción (app empaquetada), el servidor backend no se usa.
-  // La app se conecta directamente a la API de Gemini vía WebSocket.
-  // Intentar spawnearlo con process.execPath (Jarvis.exe) causa ENOENT
-  // porque un ejecutable de Electron no puede actuar como intérprete Node.
-  if (app.isPackaged) {
-    console.log('[MAIN] Producción: servidor backend omitido (app usa Gemini WS directo).');
-    return null;
-  }
 
-  if (_backendServerProc && _backendServerProc.exitCode === null) {
-    return _backendServerProc;
-  }
-
-  const serverPath = path.join(__dirname, 'server');
-  const entrypoint = path.join(serverPath, 'index.js');
-
-  if (!fs.existsSync(entrypoint)) {
-    console.warn('[MAIN] Servidor interno no encontrado en server/index.js');
-    return null;
-  }
-
-  try {
-    _backendServerProc = spawn('node', [entrypoint], {
-      cwd: serverPath,
-      windowsHide: true,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      env: { ...process.env, PORT: process.env.PORT || '3001', NODE_ENV: 'development' }
-    });
-
-    _trackChildProcess(_backendServerProc);
-
-    _backendServerProc.stdout.on('data', (data) => {
-      const msg = data.toString().trim();
-      if (msg) console.log(`[SERVER] ${msg}`);
-    });
-    _backendServerProc.stderr.on('data', (data) => {
-      const msg = data.toString().trim();
-      if (msg) console.error(`[SERVER ERR] ${msg}`);
-    });
-    _backendServerProc.on('exit', (code, signal) => {
-      console.warn(`[MAIN] Servidor interno detenido: code=${code} signal=${signal}`);
-      _backendServerProc = null;
-    });
-
-    console.log('[MAIN] Arrancando servidor interno de JARVIS (desarrollo)...');
-    return _backendServerProc;
-  } catch (err) {
-    console.error('[MAIN] Error al iniciar servidor interno:', err.message);
-    _backendServerProc = null;
-    return null;
-  }
-}
 
 // ─── Splash Window ──────────────────────────────────────────────────────────
 let _splashWindow = null;
@@ -121,7 +86,7 @@ function _sendSplashProgress(pct, text) {
 function _showMainWindowFallback() {
   if (_splashPreloadFinished) return;
   _splashPreloadFinished = true;
-  console.warn('\x1b[33m[SPLASH] Límite de carga excedido (>5s). Forzando despliegue de interfaz principal.\x1b[0m');
+  console.warn('\x1b[33m[SPLASH] Límite de carga excedido. Forzando despliegue de interfaz principal.\x1b[0m');
   
   if (_splashTimeout) {
     clearTimeout(_splashTimeout);
@@ -139,7 +104,7 @@ function _showMainWindowFallback() {
 
 function createSplashWindow() {
   _splashPreloadFinished = false;
-  _splashTimeout = setTimeout(_showMainWindowFallback, 5000);
+  _splashTimeout = setTimeout(_showMainWindowFallback, 30000);
 
   _splashWindow = new BrowserWindow({
     width: 380,
@@ -152,9 +117,10 @@ function createSplashWindow() {
     backgroundColor: '#000000',
     icon: path.join(__dirname, 'build', 'icon.png'),
     webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
-      sandbox: false
+      preload: path.join(__dirname, 'preload.js'),
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: true
     },
     show: false
   });
@@ -180,7 +146,7 @@ function createMainWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false
+      sandbox: true  // FIX: sandbox activado — el preload sólo usa contextBridge/ipcRenderer
     }
   });
 
@@ -208,7 +174,8 @@ function createMainWindow() {
     }
     if (formatted) {
       try {
-        fs.appendFileSync(path.join(__dirname, 'ui_logs.txt'), `[${ts}] ${formatted}`);
+        const logPath = path.join(app.getPath('userData'), 'ui_logs.txt');
+        fs.appendFileSync(logPath, `[${ts}] ${formatted}`);
       } catch(e) {}
     }
   });
@@ -217,14 +184,30 @@ function createMainWindow() {
     console.error(`\x1b[31m[MAIN] RENDERER FAIL LOAD: ${errorDescription} (${errorCode}) url=${url}\x1b[0m`);
   });
 
-  _mainWindow.webContents.on('render-process-gone', (event, details) => {
-    console.error(`\x1b[31m[MAIN] RENDERER CRASHED: reason=${details.reason} exitCode=${details.exitCode}\x1b[0m`);
-    console.error(`\x1b[31m[MAIN] Recargando ventana en 2s...\x1b[0m`);
+  _mainWindow.on('unresponsive', () => {
+    console.warn(`\x1b[33m[MAIN] Ventana no responde — intentando recuperar...\x1b[0m`);
     setTimeout(() => {
       try {
-        if (!_mainWindow.isDestroyed()) _mainWindow.reload();
+        if (!_mainWindow.isDestroyed() && !_mainWindow.webContents.isLoading()) {
+          _mainWindow.webContents.reload();
+          console.log(`\x1b[32m[MAIN] Ventana recargada tras unresponsive\x1b[0m`);
+        }
       } catch(e) {
-        console.error(`\x1b[31m[MAIN] Error al recargar: ${e.message}\x1b[0m`);
+        console.error(`\x1b[31m[MAIN] Error recuperando ventana: ${e.message}\x1b[0m`);
+      }
+    }, 3500);
+  });
+
+  _mainWindow.webContents.on('render-process-gone', (event, details) => {
+    console.error(`\x1b[31m[MAIN] RENDERER CRASHED: reason=${details.reason} exitCode=${details.exitCode}\x1b[0m`);
+    setTimeout(() => {
+      try {
+        if (!_mainWindow.isDestroyed()) {
+          console.log(`\x1b[32m[MAIN] Recargando renderer...\x1b[0m`);
+          _mainWindow.loadFile('renderer.html');
+        }
+      } catch(e) {
+        console.error(`\x1b[31m[MAIN] Error al recargar renderer: ${e.message}\x1b[0m`);
       }
     }, 2000);
   });
@@ -267,56 +250,57 @@ function createMainWindow() {
 
   _mainWindow.loadFile('renderer.html');
 
-  // Habilitar DevTools con F12 o Ctrl+Shift+I solo si no está empaquetado (modo desarrollo)
-  _mainWindow.webContents.on('before-input-event', (event, input) => {
-    if (!app.isPackaged) {
+  // DevTools: sólo en desarrollo (no en build empaquetado)
+  if (!app.isPackaged) {
+    _mainWindow.webContents.on('before-input-event', (event, input) => {
       if ((input.control && input.shift && input.key.toLowerCase() === 'i') || input.key === 'F12') {
         _mainWindow.webContents.toggleDevTools();
         event.preventDefault();
       }
-    }
-  });
+    });
+  }
 
   return _mainWindow;
 }
 
-// ─── Secuencia de precarga durante la splash ─────────────────────────────────
+// ─── Secuencia de precarga durante la splash (progreso real) ─────────────
 async function _runSplashPreload() {
-  _sendSplashProgress(5, 'Analizando contexto del sistema...');
-  await new Promise(r => setTimeout(r, 200));
+  const startTime = Date.now();
+  const MIN_SPLASH_MS = 1500;
 
-  // Leer memoria del disco
-  _sendSplashProgress(15, 'Cargando memoria persistente...');
-  await new Promise(r => setTimeout(r, 150));
+  const steps = [
+    { pct: 10, label: 'Inicializando sistemas...', task: async () => {
+      await Promise.resolve();
+    }},
+    { pct: 25, label: 'Verificando credenciales...', task: async () => {
+      try {
+        const creds = loadCredentials();
+        if (creds && creds.GEMINI_API_KEY) process.env.GEMINI_API_KEY = creds.GEMINI_API_KEY;
+      } catch {}
+    }},
+    { pct: 55, label: 'Inicializando interfaz...', task: async () => {
+      if (_mainWindow?.webContents?.isLoading()) {
+        await new Promise(resolve => _mainWindow.webContents.once('did-finish-load', resolve));
+      }
+    }},
+    { pct: 85, label: 'Estableciendo canales de comunicación...', task: async () => {
+      await new Promise(r => setTimeout(r, 150));
+    }},
+    { pct: 95, label: 'Finalizando...', task: async () => {
+      await new Promise(r => setTimeout(r, 100));
+    }},
+  ];
 
-  // Verificar API key
-  _sendSplashProgress(30, 'Verificando credenciales...');
-  await new Promise(r => setTimeout(r, 200));
+  for (const step of steps) {
+    _sendSplashProgress(step.pct, step.label);
+    await step.task();
+  }
 
-  // Cargar archivos de configuración de sistema
-  _sendSplashProgress(45, 'Cargando protocolos de inteligencia...');
-  await new Promise(r => setTimeout(r, 300));
+  const elapsed = Date.now() - startTime;
+  if (elapsed < MIN_SPLASH_MS) {
+    await new Promise(r => setTimeout(r, MIN_SPLASH_MS - elapsed));
+  }
 
-  // Esperar que renderer.html haya cargado
-  _sendSplashProgress(60, 'Inicializando interfaz principal...');
-  await new Promise(resolve => {
-    if (_mainWindow.webContents.isLoading()) {
-      _mainWindow.webContents.once('did-finish-load', resolve);
-    } else {
-      resolve();
-    }
-  });
-
-  _sendSplashProgress(75, 'Activando motores cognitivos...');
-  await new Promise(r => setTimeout(r, 250));
-
-  _sendSplashProgress(88, 'Conectando sistemas de audio...');
-  await new Promise(r => setTimeout(r, 200));
-
-  _sendSplashProgress(96, 'Preparando conexión con Gemini...');
-  await new Promise(r => setTimeout(r, 300));
-
-  // Señal de finalización a la splash
   _sendSplashProgress(100, 'Sistemas listos');
   if (_splashWindow && !_splashWindow.isDestroyed()) {
     _splashWindow.webContents.send('splash-done');
@@ -346,6 +330,29 @@ ipcMain.on('splash-finished', () => {
 });
 
 let _tray = null;
+let _micActive = false;
+
+function _rebuildTrayMenu() {
+  if (!_tray) return;
+  _tray.setContextMenu(Menu.buildFromTemplate([
+    { label: 'Abrir JARVIS', click: () => {
+      if (_mainWindow && !_mainWindow.isDestroyed()) { _mainWindow.show(); _mainWindow.focus(); }
+    }},
+    { type: 'separator' },
+    {
+      label: _micActive ? 'Micrófono: ACTIVADO' : 'Micrófono: DESACTIVADO',
+      click: () => {
+        _micActive = !_micActive;
+        if (_mainWindow && !_mainWindow.isDestroyed()) {
+          _mainWindow.webContents.send('tray-mic-toggle', _micActive);
+        }
+        _rebuildTrayMenu();
+      }
+    },
+    { type: 'separator' },
+    { label: 'Salir', click: () => { app.isQuitting = true; app.quit(); } }
+  ]));
+}
 
 function _createTray() {
   try {
@@ -358,16 +365,7 @@ function _createTray() {
     }
     _tray = new Tray(trayIcon);
     _tray.setToolTip('JARVIS');
-    _tray.setContextMenu(Menu.buildFromTemplate([
-      { label: 'Abrir JARVIS', click: () => {
-        if (_mainWindow && !_mainWindow.isDestroyed()) { _mainWindow.show(); _mainWindow.focus(); }
-      }},
-      { label: 'Activar micrófono', click: () => {
-        if (_mainWindow && !_mainWindow.isDestroyed()) _mainWindow.webContents.send('global-toggle-mic');
-      }},
-      { type: 'separator' },
-      { label: 'Salir', click: () => { app.isQuitting = true; app.quit(); } }
-    ]));
+    _rebuildTrayMenu();
     _tray.on('double-click', () => {
       if (_mainWindow && !_mainWindow.isDestroyed()) { _mainWindow.show(); _mainWindow.focus(); }
     });
@@ -382,7 +380,6 @@ function _registerGlobalHotkeys() {
       if (_mainWindow && !_mainWindow.isDestroyed()) {
         _mainWindow.show();
         _mainWindow.focus();
-        _mainWindow.webContents.send('global-toggle-mic');
       }
     });
   } catch (e) {
@@ -408,11 +405,13 @@ app.on('second-instance', () => {
 });
 
 app.whenReady().then(() => {
-  _startBackendServer();
   createSplashWindow();
   createMainWindow();
   _createTray();
   _registerGlobalHotkeys();
+  setupUpdater(() => _mainWindow);
+  // Buscar actualización 10s después del boot (no bloquear inicio)
+  setTimeout(() => checkForUpdatesSilent(), 10000);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -470,162 +469,55 @@ ipcMain.on('window-control', (event, action) => {
 });
 
 const { cleanupPs } = registerPsIpc((proc) => _trackChildProcess(proc));
+registerAppFinder();
+const { cleanupYtdl } = registerYtdlIpc((proc) => _trackChildProcess(proc));
+registerAllIpc();
 
-// Abrir URL — nativo Electron (shell.openExternal, instantáneo, sin spawn de proceso)
-ipcMain.handle('open-browser', async (event, url) => {
-  try {
-    await shell.openExternal(url);
-    return { success: true };
-  } catch (err) {
-    return { success: false, output: err.message };
-  }
-});
+// (open-browser movido a main/ipc/handlers/network.js)
 
-// System notification via Electron native API
-ipcMain.handle('show-notification', async (event, { title, body }) => {
-  try {
-    const notif = new Notification({ title: title || 'JARVIS', body: body || '' });
-    notif.show();
-    return { success: true };
-  } catch (err) {
-    return { success: false, error: err.message };
-  }
-});
+// (UI handlers movidas a main/ipc/handlers/ui.js)
 
-// Open file/document/folder via shell (native, instant, zero risk)
-ipcMain.handle('open-path', async (event, targetPath) => {
-  try {
-    const error = await shell.openPath(targetPath);
-    return error ? { success: false, output: error } : { success: true, output: `Abierto: ${targetPath}` };
-  } catch (err) {
-    return { success: false, output: err.message };
-  }
-});
+// (open-path movido a main/ipc/handlers/network.js)
 
-// ─── Safe File Operations (path-validated, no raw PS injection) ──────────
-const ALLOWED_FILE_ROOTS = [
-  process.env.USERPROFILE,
-  process.env.HOMEDRIVE + '\\',
-  app.getPath('temp'),
-  app.getPath('desktop'),
-  app.getPath('documents'),
-  app.getPath('downloads'),
-  path.join(process.env.USERPROFILE, 'Desktop'),
-  path.join(process.env.USERPROFILE, 'Documents'),
-  path.join(process.env.USERPROFILE, 'Downloads'),
-  path.join(process.env.USERPROFILE, 'Pictures'),
-  path.join(process.env.USERPROFILE, 'Music'),
-  path.join(process.env.USERPROFILE, 'Videos'),
-  path.join(process.env.USERPROFILE, 'OneDrive'),
-];
+// (File Operations movidas a main/ipc/handlers/file-operations.js)
 
-function _isPathSafe(targetPath) {
-  try {
-    const resolved = path.resolve(targetPath);
-    const normalized = resolved.toLowerCase();
-    return ALLOWED_FILE_ROOTS.some(root => root && normalized.startsWith(root.toLowerCase()));
-  } catch { return false; }
-}
-
-ipcMain.handle('file-read', async (event, filePath) => {
-  try {
-    if (!_isPathSafe(filePath)) return { success: false, output: 'ERR_PATH_NOT_ALLOWED' };
-    if (!fs.existsSync(filePath)) return { success: false, output: 'ERR_FILE_NOT_FOUND' };
-    const content = fs.readFileSync(filePath, 'utf8');
-    return { success: true, output: content };
-  } catch (err) {
-    return { success: false, output: `Error: ${err.message}` };
-  }
-});
-
-ipcMain.handle('file-write', async (event, filePath, content) => {
-  try {
-    if (!_isPathSafe(filePath)) return { success: false, output: 'ERR_PATH_NOT_ALLOWED' };
-    if (typeof content !== 'string') return { success: false, output: 'ERR_INVALID_CONTENT' };
-    const dir = path.dirname(filePath);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(filePath, content, 'utf8');
-    return { success: true, output: `Archivo escrito: ${filePath}` };
-  } catch (err) {
-    return { success: false, output: `Error: ${err.message}` };
-  }
-});
-
-ipcMain.handle('file-delete', async (event, filePath) => {
-  try {
-    if (!_isPathSafe(filePath)) return { success: false, output: 'ERR_PATH_NOT_ALLOWED' };
-    if (!fs.existsSync(filePath)) return { success: false, output: 'ERR_FILE_NOT_FOUND' };
-    const stat = fs.statSync(filePath);
-    if (stat.isDirectory()) {
-      fs.rmSync(filePath, { recursive: true, force: true });
-    } else {
-      fs.unlinkSync(filePath);
-    }
-    return { success: true, output: `Eliminado: ${filePath}` };
-  } catch (err) {
-    return { success: false, output: `Error: ${err.message}` };
-  }
-});
-
-ipcMain.handle('file-list', async (event, dirPath, pattern) => {
-  try {
-    if (!_isPathSafe(dirPath)) return { success: false, output: 'ERR_PATH_NOT_ALLOWED' };
-    if (!fs.existsSync(dirPath)) return { success: false, output: 'ERR_PATH_NOT_FOUND' };
-    const items = fs.readdirSync(dirPath, { withFileTypes: true });
-    const filter = pattern ? new RegExp(pattern.replace(/\*/g, '.*').replace(/\?/g, '.'), 'i') : null;
-    const result = items
-      .filter(i => !filter || filter.test(i.name))
-      .map(i => {
-        const s = fs.statSync(path.join(dirPath, i.name));
-        return `${i.isDirectory() ? '[DIR]' : '[FILE]'} ${i.name}${i.isFile() ? ` (${s.size} bytes)` : ''} ${s.mtime.toISOString().slice(0, 10)}`;
-      })
-      .join('\n');
-    return { success: true, output: result || '(vacío)' };
-  } catch (err) {
-    return { success: false, output: `Error: ${err.message}` };
-  }
-});
-
-ipcMain.handle('file-info', async (event, filePath) => {
-  try {
-    if (!_isPathSafe(filePath)) return { success: false, output: 'ERR_PATH_NOT_ALLOWED' };
-    if (!fs.existsSync(filePath)) return { success: false, output: 'ERR_FILE_NOT_FOUND' };
-    const s = fs.statSync(filePath);
-    const info = [
-      `Nombre: ${path.basename(filePath)}`,
-      `Tamaño: ${s.size} bytes`,
-      `Creado: ${s.birthtime.toISOString()}`,
-      `Modificado: ${s.mtime.toISOString()}`,
-      `Es directorio: ${s.isDirectory() ? 'Sí' : 'No'}`,
-    ].join('\n');
-    return { success: true, output: info };
-  } catch (err) {
-    return { success: false, output: `Error: ${err.message}` };
-  }
-});
-
-// ─── Wallpaper change via safe PS (whitelisted, no blocklist) ──────────────
-ipcMain.handle('set-wallpaper', async (event, type, value) => {
-  try {
-    let psCmd = '';
-    if (type === 'color') {
-      const parts = value.split(' ');
-      if (parts.length !== 3 || parts.some(p => isNaN(parseInt(p)))) return { success: false, output: 'ERR_INVALID_COLOR' };
-      psCmd = `Add-Type -TypeDefinition @'
+// ─── Wallpaper change via parameterized PS (no string interpolation) ──────
+const WP_SCRIPT = `param([string]$Action, [string]$Value)
+if ($Action -eq "color") {
+  $parts = $Value.Split(" ");
+  if ($parts.Count -ne 3) { Write-Output "ERR_INVALID_COLOR"; exit }
+  foreach ($p in $parts) { if (-not ($p -match "^\\d+$")) { Write-Output "ERR_INVALID_COLOR"; exit } }
+  Add-Type -TypeDefinition @'
 using System; using System.Runtime.InteropServices;
 public class W { [DllImport("user32.dll")] public static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni); }
-'@; $p='HKCU:\\Control Panel\\Colors'; New-ItemProperty -Path $p -Name Background -PropertyType String -Value '${parts[0]} ${parts[1]} ${parts[2]}' -Force; [W]::SystemParametersInfo(20,0,'${parts[0]} ${parts[1]} ${parts[2]}',2); Write-Output 'OK'`;
-    } else if (type === 'url') {
-      const escaped = value.replace(/'/g, "''");
-      psCmd = `$url='${escaped}'; $img="$env:TEMP\\jarvis_wp_$(Get-Date -f yyyyMMdd_HHmmss).jpg"; try { $wc=New-Object -ComObject MSXML2.ServerXMLHTTP; $wc.open('GET',$url,$false); $wc.send(); [IO.File]::WriteAllBytes($img, [Text.Encoding]::ASCII.GetBytes($wc.responseText)) } catch { }; if (Test-Path $img) { Add-Type -TypeDefinition @'
+'@;
+  $p="HKCU:\\Control Panel\\Colors";
+  New-ItemProperty -Path $p -Name Background -PropertyType String -Value "$($parts[0]) $($parts[1]) $($parts[2])" -Force;
+  [W]::SystemParametersInfo(20,0,"$($parts[0]) $($parts[1]) $($parts[2])",2);
+  Write-Output "OK"
+} elseif ($Action -eq "url") {
+  $img="$env:TEMP\\jarvis_wp_$(Get-Date -f yyyyMMdd_HHmmss).jpg";
+  try {
+    $wc=New-Object -ComObject MSXML2.ServerXMLHTTP;
+    $wc.open("GET", $Value, $false);
+    $wc.send();
+    [IO.File]::WriteAllBytes($img, [Text.Encoding]::ASCII.GetBytes($wc.responseText));
+    Add-Type -TypeDefinition @'
 using System; using System.Runtime.InteropServices;
 public class W2 { [DllImport("user32.dll")] public static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni); }
-'@; [W2]::SystemParametersInfo(20,0,$img,2); Write-Output 'OK' } else { Write-Output 'ERR_DOWNLOAD_FAILED' }`;
-    } else return { success: false, output: 'ERR_INVALID_TYPE' };
+'@;
+    [W2]::SystemParametersInfo(20,0,$img,2);
+    Write-Output "OK"
+  } catch { Write-Output "ERR_DOWNLOAD_FAILED" }
+} else { Write-Output "ERR_INVALID_TYPE" }`;
+
+ipcMain.handle('set-wallpaper', async (event, type, value) => {
+  try {
+    if (type !== 'color' && type !== 'url') return { success: false, output: 'ERR_INVALID_TYPE' };
     const tmpFile = path.join(app.getPath('temp'), `jarvis_wp_${Date.now()}.ps1`);
-    fs.writeFileSync(tmpFile, psCmd, 'utf8');
+    fs.writeFileSync(tmpFile, WP_SCRIPT, 'utf8');
     return new Promise((resolve) => {
-      execFile('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', tmpFile],
+      execFile('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', tmpFile, '-Action', type, '-Value', value],
         { timeout: 15000, encoding: 'utf8' }, (error, stdout) => {
         try { fs.unlinkSync(tmpFile); } catch(e) {}
         if (stdout && stdout.includes('OK')) resolve({ success: true, output: 'Fondo cambiado.' });
@@ -637,112 +529,338 @@ public class W2 { [DllImport("user32.dll")] public static extern int SystemParam
   }
 });
 
-function _findFilesRecursive(dir, pattern, maxResults, results = [], depth = 0, visited = new Set()) {
-  if (depth > 8) return results;
-  try {
-    const resolvedDir = fs.realpathSync(dir);
-    if (visited.has(resolvedDir)) return results;
-    visited.add(resolvedDir);
-    const entries = fs.readdirSync(dir, { withFileTypes: true });
-    for (const entry of entries) {
-      if (results.length >= maxResults) break;
-      const fullPath = path.join(dir, entry.name);
+// (file-find movido a main/ipc/handlers/file-operations.js)
+
+// (Network handlers movidas a main/ipc/handlers/network.js)
+
+// Helpers para volumen y brillo del sistema (ejecutados de forma segura en el proceso principal)
+function getVolumeFromSystem() {
+  const _run = () => new Promise((resolve) => {
+    const script = `
       try {
-        if (entry.name.toLowerCase().includes(pattern.toLowerCase())) {
-          const s = fs.statSync(fullPath);
-          results.push(`${entry.isDirectory() ? '[DIR]' : '[FILE]'} ${fullPath} (${s.size} bytes) ${s.mtime.toISOString().slice(0, 10)}`);
+        $code = '
+        using System;
+        using System.Runtime.InteropServices;
+        [Guid("5CDF2C82-841E-4546-9722-0CF74078229A"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+        interface IAudioEndpointVolume {
+          int RegisterControlChangeNotify(IntPtr p);
+          int UnregisterControlChangeNotify(IntPtr p);
+          int GetChannelCount(out uint c);
+          int SetMasterVolumeLevelScalar(float l, ref Guid g);
+          int GetMasterVolumeLevel(out float l);
+          int GetMasterVolumeLevelScalar(out float l);
         }
-      } catch (e) {
-        // stat failed - skip this entry
+        [Guid("7991E194-C085-40E5-882D-2450202D303D"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+        interface IMMDeviceEnumerator {
+          int EnumAudioEndpoints(int f, int m, out IntPtr d);
+          int GetDefaultAudioEndpoint(int f, int r, out IMMDevice d);
+        }
+        [Guid("D66606E7-2774-40F5-857A-CE354C1474C5"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+        interface IMMDevice {
+          int Activate(ref Guid id, int cls, IntPtr p, [MarshalAs(UnmanagedType.IUnknown)] out object o);
+        }
+        [ComImport, Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")]
+        class MMDeviceEnumeratorCom {}
+        public class Audio {
+          public static float Get() {
+            var enumerator = (IMMDeviceEnumerator)(new MMDeviceEnumeratorCom());
+            IMMDevice device = null;
+            enumerator.GetDefaultAudioEndpoint(0, 0, out device);
+            object o = null;
+            var g = new Guid("5CDF2C82-841E-4546-9722-0CF74078229A");
+            device.Activate(ref g, 23, IntPtr.Zero, out o);
+            float level = 0;
+            ((IAudioEndpointVolume)o).GetMasterVolumeLevelScalar(out level);
+            return level;
+          }
+        }';
+        Add-Type -TypeDefinition $code -ErrorAction Stop
+        [Audio]::Get()
+      } catch {
+        exit 1
       }
-      if (entry.isDirectory() && !entry.isSymbolicLink()) {
-        _findFilesRecursive(fullPath, pattern, maxResults, results, depth + 1, visited);
+    `;
+    execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script], { timeout: 5000 }, (error, stdout) => {
+      if (error || !stdout) {
+        resolve({ success: false, volume: null });
+      } else {
+        const val = parseFloat(stdout.trim().replace(',', '.'));
+        if (isNaN(val)) resolve({ success: false, volume: null });
+        else resolve({ success: true, volume: Math.round(val * 100) });
       }
-    }
-  } catch (e) {
-    // Permission denied or other errors - skip silently
-  }
-  return results;
+    });
+  });
+
+  return (async () => {
+    let r = await _run();
+    if (r.success) return r;
+    r = await _run();
+    return r;
+  })();
 }
 
-ipcMain.handle('file-find', async (event, dirPath, searchPattern, maxResults = 20) => {
-  try {
-    if (!_isPathSafe(dirPath)) return { success: false, output: 'ERR_PATH_NOT_ALLOWED' };
-    if (!fs.existsSync(dirPath)) return { success: false, output: 'ERR_PATH_NOT_FOUND' };
-    const safeMax = Math.min(maxResults, 100);
-    const results = _findFilesRecursive(dirPath, searchPattern, safeMax);
-    return { success: true, output: results.join('\n') || `No se encontraron archivos con "${searchPattern}" en ${dirPath}` };
-  } catch (err) {
-    return { success: false, output: `Error: ${err.message}` };
-  }
-});
-
-// Fetch URL content — modo normal (HTML stripped) o raw (respuesta exacta para APIs)
-const MAX_FETCH_REDIRECTS = 3;
-function _fetchUrl(urlStr, raw, redirectCount = 0) {
+function setVolumeToSystem(percent) {
   return new Promise((resolve) => {
-    if (!urlStr) return resolve({ success: false, output: 'URL vacía' });
-    try {
-      const parsedUrl = new URL(urlStr);
-      const client = parsedUrl.protocol === 'https:' ? https : http;
-      const headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-      };
-      if (raw) {
-        headers['Accept'] = 'application/json, text/plain, */*';
-      } else {
-        headers['Accept'] = 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8';
-      }
+    const pct = Math.max(0, Math.min(100, Math.round(percent)));
+    const scalar = (pct / 100).toFixed(2);
 
-      const request = client.get(urlStr, { timeout: 15000, headers }, (res) => {
-        const statusCode = res.statusCode || 0;
-        if (statusCode >= 300 && statusCode < 400 && res.headers.location && redirectCount < MAX_FETCH_REDIRECTS) {
-          const nextUrl = new URL(res.headers.location, parsedUrl).toString();
-          res.destroy();
-          resolve(_fetchUrl(nextUrl, raw, redirectCount + 1));
-          return;
-        }
-
-        if (statusCode >= 400) {
-          res.destroy();
-          return resolve({ success: false, output: `HTTP ${statusCode} ${res.statusMessage || ''}`.trim() });
-        }
-
-        let data = '';
-        const maxSize = 200 * 1024;
-        res.on('data', chunk => {
-          data += chunk.toString('utf8');
-          if (data.length > maxSize) { data = data.substring(0, maxSize); res.destroy(); }
-        });
-        res.on('end', () => {
-          if (raw) {
-            resolve({ success: true, output: data.substring(0, 30000) });
-            return;
+    // Method 1: C# COM interop via PowerShell
+    const method1 = () => new Promise((res) => {
+      const script = `
+        try {
+          $code = '
+          using System;
+          using System.Runtime.InteropServices;
+          [Guid("5CDF2C82-841E-4546-9722-0CF74078229A"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+          interface IAudioEndpointVolume {
+            int RegisterControlChangeNotify(IntPtr p);
+            int UnregisterControlChangeNotify(IntPtr p);
+            int GetChannelCount(out uint c);
+            int SetMasterVolumeLevelScalar(float l, ref Guid g);
+            int GetMasterVolumeLevel(out float l);
+            int GetMasterVolumeLevelScalar(out float l);
           }
-          const text = data.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-            .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-            .replace(/<[^>]+>/g, ' ')
-            .replace(/\s+/g, ' ')
-            .trim()
-            .substring(0, 5000);
-          resolve({ success: true, output: text.substring(0, 3000) });
-        });
+          [Guid("7991E194-C085-40E5-882D-2450202D303D"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+          interface IMMDeviceEnumerator {
+            int EnumAudioEndpoints(int f, int m, out IntPtr d);
+            int GetDefaultAudioEndpoint(int f, int r, out IMMDevice d);
+          }
+          [Guid("D66606E7-2774-40F5-857A-CE354C1474C5"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+          interface IMMDevice {
+            int Activate(ref Guid id, int cls, IntPtr p, [MarshalAs(UnmanagedType.IUnknown)] out object o);
+          }
+          [ComImport, Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")]
+          class MMDeviceEnumeratorCom {}
+          public class Audio {
+            public static void Set(float v) {
+              var enumerator = (IMMDeviceEnumerator)(new MMDeviceEnumeratorCom());
+              IMMDevice device = null;
+              enumerator.GetDefaultAudioEndpoint(0, 0, out device);
+              object o = null;
+              var g = new Guid("5CDF2C82-841E-4546-9722-0CF74078229A");
+              device.Activate(ref g, 23, IntPtr.Zero, out o);
+              ((IAudioEndpointVolume)o).SetMasterVolumeLevelScalar(v, ref g);
+            }
+          }';
+          Add-Type -TypeDefinition $code -ErrorAction Stop
+          [Audio]::Set(${scalar})
+          Write-Output "OK"
+        } catch {
+          Write-Error $_.Exception.Message
+          exit 1
+        }
+      `;
+      execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script], { timeout: 8000 }, (err, stdout, stderr) => {
+        if (!err && stdout?.includes('OK')) return res({ success: true });
+        res({ success: false, error: (stderr || err?.message || '').trim() });
       });
+    });
 
-      request.on('error', (err) => resolve({ success: false, output: err.message }));
-      request.on('timeout', () => {
-        request.destroy();
-        resolve({ success: false, output: 'Request timeout' });
+    // Method 2: COM via WMP object (no C# compilation needed)
+    const method2 = () => new Promise((res) => {
+      const s2 = `
+        try {
+          $wmp = New-Object -ComObject "WMPlayer.OCX" -ErrorAction Stop
+          $wmp.settings.volume = ${pct}
+          $wmp = $null; [System.GC]::Collect()
+          Write-Output "OK"
+        } catch {
+          Write-Error $_.Exception.Message
+          exit 1
+        }
+      `;
+      execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', s2], { timeout: 5000 }, (err, stdout, stderr) => {
+        if (!err && stdout?.includes('OK')) return res({ success: true });
+        res({ success: false, error: (stderr || err?.message || '').trim() });
       });
-    } catch (err) {
-      resolve({ success: false, output: err.message });
-    }
+    });
+
+    // Method 3: nircmd (if available)
+    const method3 = () => new Promise((res) => {
+      const s3 = `
+        $nircmd = Get-Command 'nircmd.exe' -ErrorAction SilentlyContinue;
+        if (-not $nircmd) {
+          $paths = @("$env:ProgramFiles\\nircmd.exe", "$env:ProgramFiles(x86)\\nircmd.exe", "$env:SystemRoot\\nircmd.exe", "$env:SystemRoot\\System32\\nircmd.exe");
+          foreach ($p in $paths) { if (Test-Path $p) { $nircmd = $p; break } }
+        }
+        if ($nircmd) {
+          $exe = if ($nircmd -is [string]) { $nircmd } else { $nircmd.Source };
+          if (Test-Path $exe) {
+            & $exe setsysvolume ${scalar};
+            Write-Output "OK"
+            exit 0
+          }
+        }
+        Write-Output "NOCMD"
+      `;
+      execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', s3], { timeout: 5000 }, (err, stdout) => {
+        if (!err && stdout?.includes('OK')) return res({ success: true });
+        res({ success: false, error: '' });
+      });
+    });
+
+    // Method 4: SendKeys volume up/down to approximate the level
+    const method4 = () => new Promise((res) => {
+      // Read current volume first, then press keys to adjust
+      const s4 = `
+        try {
+          $wsh = New-Object -ComObject "WScript.Shell" -ErrorAction Stop;
+          $steps = [Math]::Floor(${pct} / 2);
+          $steps = [Math]::Min($steps, 50);
+          if ($steps -gt 0) {
+            1..$steps | ForEach-Object { $wsh.SendKeys([char]0xAF); Start-Sleep -Milliseconds 20 };
+          }
+          Write-Output "OK"
+        } catch { Write-Error "sendkeys fail"; exit 1 }
+      `;
+      execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', s4], { timeout: 8000 }, (err, stdout) => {
+        if (!err && stdout?.includes('OK')) return res({ success: true });
+        res({ success: false, error: '' });
+      });
+    });
+
+    (async () => {
+      const r1 = await method1();
+      if (r1.success) return resolve({ success: true, output: '' });
+
+      const r2 = await method2();
+      if (r2.success) return resolve({ success: true, output: '' });
+
+      const r3 = await method3();
+      if (r3.success) return resolve({ success: true, output: '' });
+
+      const r4 = await method4();
+      if (r4.success) return resolve({ success: true, output: '' });
+
+      resolve({
+        success: false,
+        output: ''
+      });
+    })();
   });
 }
 
-ipcMain.handle('fetch-url', async (event, urlStr, raw) => {
-  return _fetchUrl(urlStr, raw);
+function getBrightnessFromSystem() {
+  const _run = (attempt) => new Promise((resolve) => {
+    const script = `
+      try {
+        $val = (Get-CimInstance -Namespace root/WMI -ClassName WmiMonitorBrightness -ErrorAction Stop).CurrentBrightness
+        if ($val -eq $null) { throw "empty" }
+        Write-Output $val
+      } catch {
+        Write-Error $_.Exception.Message
+        exit 1
+      }
+    `;
+    execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script], { timeout: 5000 }, (error, stdout, stderr) => {
+      if (error || !stdout) {
+        resolve({ success: false, brightness: null });
+      } else {
+        const val = parseInt(stdout.trim());
+        if (isNaN(val)) resolve({ success: false, brightness: null });
+        else resolve({ success: true, brightness: val });
+      }
+    });
+  });
+
+  return (async () => {
+    let r = await _run(1);
+    if (r.success) return r;
+    r = await _run(2);
+    return r;
+  })();
+}
+
+function setBrightnessToSystem(percent) {
+  const pct = Math.max(0, Math.min(100, Math.round(percent)));
+
+  // Method 1: WmiMonitorBrightnessMethods (laptops + some monitors)
+  const method1 = () => new Promise((resolve) => {
+    const script = `
+      try {
+        $monitors = Get-CimInstance -Namespace root/WMI -ClassName WmiMonitorBrightnessMethods -ErrorAction Stop;
+        if (-not $monitors) { throw "empty" }
+        foreach ($m in $monitors) { $m.WmiSetBrightness(0, ${pct}) }
+        Write-Output "OK"
+      } catch { exit 1 }
+    `;
+    execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script], { timeout: 5000 }, (error, stdout) => {
+      resolve({ success: !error && stdout?.includes('OK') });
+    });
+  });
+
+  // Method 2: nircmd (if available on system) — método anterior eliminado por ser stub vacío
+  const method2 = () => new Promise((resolve) => {
+    const script = `
+      $nircmd = Get-Command 'nircmd.exe' -ErrorAction SilentlyContinue;
+      if (-not $nircmd) {
+        $paths = @("$env:ProgramFiles\\nircmd.exe", "$env:ProgramFiles(x86)\\nircmd.exe", "$env:SystemRoot\\nircmd.exe", "$env:SystemRoot\\System32\\nircmd.exe");
+        foreach ($p in $paths) { if (Test-Path $p) { $nircmd = $p; break } }
+      }
+      if ($nircmd) {
+        $exe = if ($nircmd -is [string]) { $nircmd } else { $nircmd.Source };
+        if (Test-Path $exe) {
+          & $exe setbrightness ${pct};
+          Write-Output "OK"
+          exit 0
+        }
+      }
+      Write-Output "NOCMD"
+    `;
+    execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script], { timeout: 5000 }, (err, stdout) => {
+      resolve({ success: !err && stdout?.includes('OK') });
+    });
+  });
+
+  // Method 3: nircmd (if available on system)
+  const method3 = () => new Promise((resolve) => {
+    const script = `
+      $nircmd = Get-Command 'nircmd.exe' -ErrorAction SilentlyContinue;
+      if (-not $nircmd) {
+        $paths = @("$env:ProgramFiles\\nircmd.exe", "$env:ProgramFiles(x86)\\nircmd.exe", "$env:SystemRoot\\nircmd.exe", "$env:SystemRoot\\System32\\nircmd.exe");
+        foreach ($p in $paths) { if (Test-Path $p) { $nircmd = $p; break } }
+      }
+      if ($nircmd) {
+        $exe = if ($nircmd -is [string]) { $nircmd } else { $nircmd.Source };
+        if (Test-Path $exe) {
+          & $exe setbrightness ${pct};
+          Write-Output "OK"
+          exit 0
+        }
+      }
+      Write-Output "NOCMD"
+    `;
+    execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script], { timeout: 5000 }, (err, stdout) => {
+      resolve({ success: !err && stdout?.includes('OK') });
+    });
+  });
+
+  return (async () => {
+    let r = await method1();
+    if (r.success) return r;
+    r = await method1(); // retry method1 once
+    if (r.success) return r;
+    r = await method2(); // nircmd como fallback
+    return r;
+  })();
+}
+
+ipcMain.handle('get-volume', async () => {
+  return await getVolumeFromSystem();
 });
+
+ipcMain.handle('set-volume', async (event, percent) => {
+  return await setVolumeToSystem(percent);
+});
+
+ipcMain.handle('get-brightness', async () => {
+  return await getBrightnessFromSystem();
+});
+
+ipcMain.handle('set-brightness', async (event, percent) => {
+  return await setBrightnessToSystem(percent);
+});
+
 
 // Get current system date/time info
 ipcMain.handle('get-system-time', async () => {
@@ -808,6 +926,52 @@ ipcMain.handle('memory-write', (event, data) => {
   }
 });
 
+// Vector memory store (memoria episódica con embeddings)
+const MEMORY_VECTORS_FILE = path.join(app.getPath('userData'), 'jarvis_memory_vectors.json');
+
+ipcMain.handle('memory-vectors-read', () => {
+  try {
+    if (fs.existsSync(MEMORY_VECTORS_FILE)) {
+      return JSON.parse(fs.readFileSync(MEMORY_VECTORS_FILE, 'utf8'));
+    }
+  } catch(e) {}
+  return { entries: [] };
+});
+
+ipcMain.handle('memory-vectors-write', (event, data) => {
+  try {
+    const tmpFile = MEMORY_VECTORS_FILE + '.tmp';
+    fs.writeFileSync(tmpFile, JSON.stringify(data, null, 2), 'utf8');
+    fs.renameSync(tmpFile, MEMORY_VECTORS_FILE);
+    return { success: true };
+  } catch(e) {
+    return { success: false, error: e.message };
+  }
+});
+
+// Reminders file backup (persistencia a archivo, sobrevive a localStorage.clear())
+const REMINDERS_FILE = path.join(app.getPath('userData'), 'jarvis_reminders.json');
+
+ipcMain.handle('reminders-file-read', () => {
+  try {
+    if (fs.existsSync(REMINDERS_FILE)) {
+      return { success: true, data: JSON.parse(fs.readFileSync(REMINDERS_FILE, 'utf8')) };
+    }
+  } catch(e) {}
+  return { success: false, data: [] };
+});
+
+ipcMain.handle('reminders-file-write', (event, data) => {
+  try {
+    const tmpFile = REMINDERS_FILE + '.tmp';
+    fs.writeFileSync(tmpFile, JSON.stringify(data, null, 2), 'utf8');
+    fs.renameSync(tmpFile, REMINDERS_FILE);
+    return { success: true };
+  } catch(e) {
+    return { success: false, error: e.message };
+  }
+});
+
 // Loguear mensajes del renderizador en la terminal (vía logToTerminal)
 ipcMain.on('log-to-terminal', (event, type, message) => {
   const timestamp = new Date().toLocaleTimeString('es', { hour12: false });
@@ -838,6 +1002,43 @@ ipcMain.handle('get-home-dir', async () => {
   return app.getPath('home');
 });
 
+// ─── OAuth Local Server (Google / Spotify redirect flow) ───────────────────
+let _oauthServer = null;
+ipcMain.handle('start-oauth-server', async (event, port) => {
+  return new Promise((resolve, reject) => {
+    if (_oauthServer) {
+      try { _oauthServer.close(); } catch(e) {}
+      _oauthServer = null;
+    }
+    const server = http.createServer((req, res) => {
+      const url = new URL(req.url, `http://localhost:${port}`);
+      const code = url.searchParams.get('code');
+      const error = url.searchParams.get('error');
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      if (code) {
+        res.end('<html><body style="font-family:sans-serif;text-align:center;padding:40px;background:#050810;color:#00bfff"><h2>✅ Conexión Exitosa</h2><p>Puedes cerrar esta ventana y volver a JARVIS.</p></body></html>');
+        setTimeout(() => { try { server.close(); _oauthServer = null; } catch(e) {} }, 1000);
+        resolve(code);
+      } else {
+        res.end(`<html><body style="font-family:sans-serif;text-align:center;padding:40px;background:#050810;color:#ff3b30"><h2>❌ Error de autorización</h2><p>${error || 'Acceso denegado'}</p></body></html>`);
+        setTimeout(() => { try { server.close(); _oauthServer = null; } catch(e) {} }, 1000);
+        reject(new Error(error || 'Autorización denegada por el usuario'));
+      }
+    });
+    _oauthServer = server;
+    server.on('error', (err) => reject(err));
+    server.listen(port, '127.0.0.1', () => {
+      console.log(`[OAUTH] Servidor local escuchando en puerto ${port}`);
+    });
+    // Timeout de 3 minutos
+    setTimeout(() => {
+      try { server.close(); _oauthServer = null; } catch(e) {}
+      reject(new Error('Tiempo de espera agotado. Intenta de nuevo.'));
+    }, 180000);
+  });
+});
+
+
 ipcMain.handle('get-app-version', async () => {
   return app.getVersion ? app.getVersion() : (require('./package.json').version || '1.0.0');
 });
@@ -864,13 +1065,6 @@ ipcMain.handle('setup-gemini-key', async (event, key) => {
     console.error(`[MAIN] No se pudo guardar la key en almacenamiento seguro: ${e.message}`);
   }
 
-  // También persiste en .env para compatibilidad / desarrollo local
-  try {
-    const envPath = require('path').join(__dirname, '.env');
-    require('fs').writeFileSync(envPath, `GEMINI_API_KEY=${key.trim()}\n`);
-  } catch (e) {
-    console.error(`[MAIN] No se pudo guardar .env: ${e.message}`);
-  }
   return { success: true };
 });
 
@@ -902,6 +1096,56 @@ ipcMain.handle('clear-storage', async (event) => {
   } catch (e) {
     return { success: false, error: e.message };
   }
+});
+
+// Gemini Text Chat via REST API — para mensajes de texto (no audio Bidi)
+ipcMain.handle('gemini-text-chat', async (event, { messages, systemInstruction }) => {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey || apiKey.trim().length < 10) {
+    return { success: false, error: 'API_KEY_NOT_CONFIGURED' };
+  }
+  if (!messages || !Array.isArray(messages) || messages.length === 0) {
+    return { success: false, error: 'No messages provided' };
+  }
+  return new Promise((resolve) => {
+    const model = 'gemini-2.5-flash';
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+    const body = { contents: messages };
+    if (systemInstruction) {
+      body.systemInstruction = { parts: [{ text: systemInstruction }] };
+    }
+    const bodyStr = JSON.stringify(body);
+    const options = {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': apiKey },
+    };
+    const req = https.request(url, options, (res) => {
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(data);
+          const text = parsed?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          if (text) {
+            resolve({ success: true, response: text });
+          } else if (parsed?.promptFeedback?.blockReason) {
+            resolve({ success: false, error: `Bloqueado: ${parsed.promptFeedback.blockReason}` });
+          } else if (parsed?.error) {
+            resolve({ success: false, error: parsed.error.message || 'API error' });
+          } else {
+            resolve({ success: false, error: 'Respuesta vacía del modelo' });
+          }
+        } catch (e) {
+          resolve({ success: false, error: `Error parseando respuesta: ${e.message}` });
+        }
+      });
+    });
+    req.on('error', (e) => {
+      resolve({ success: false, error: `Error de conexión: ${e.message}` });
+    });
+    req.write(bodyStr);
+    req.end();
+  });
 });
 
 // WebSocket Gemini — conexión segura, API key nunca sale del main process
@@ -992,6 +1236,12 @@ ipcMain.handle('ws-close', () => {
   return { success: true };
 });
 
+ipcMain.handle('set-mic-state', (event, active) => {
+  _micActive = active;
+  _rebuildTrayMenu();
+  return { success: true };
+});
+
 ipcMain.handle('ws-get-state', () => {
   return { readyState: geminiWs ? geminiWs.readyState : 3 };
 });
@@ -1017,7 +1267,7 @@ ipcMain.handle('capture-screenshot', async (event) => {
 // ─── Feedback Email ────────────────────────────────────────────────
 ipcMain.handle('send-feedback-email', async (event, { message, user, version, filepath }) => {
   try {
-    const boundary = '----FormBoundary' + Math.random().toString(36).slice(2);
+    const boundary = '----FormBoundary' + crypto.randomBytes(16).toString('hex');
     const parts = [];
 
     // Text fields
@@ -1093,15 +1343,53 @@ ipcMain.handle('save-file-dialog', async (event, { defaultName, content }) => {
   }
 });
 
+// ─── Confirm dialog para operaciones de alto riesgo ──────────────────
+ipcMain.handle('show-confirm-dialog', async (event, message) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win) return { response: false, remember: false };
+  const result = await dialog.showMessageBox(win, {
+    type: 'warning',
+    buttons: ['Cancelar', 'Permitir esta vez', 'Permitir siempre'],
+    defaultId: 1,
+    cancelId: 0,
+    title: '🔒 JARVIS JS — Solicitud de permiso',
+    message: message || '¿Permitir esta operación?',
+    detail: `Jarvis quiere ejecutar una acción que requiere su autorización.\n\n¿Qué significa cada opción?\n• "Cancelar" — No permitir. Jarvis buscará otra forma de ayudar.\n• "Permitir esta vez" — Ejecutar solo ahora. Jarvis volverá a preguntar.\n• "Permitir siempre" — Confiar permanentemente. No volverá a preguntar para esta operación específica.`,
+    noLink: true
+  });
+  return { response: result.response >= 1, remember: result.response === 2 };
+});
+
 // ─── Screenshot base64 (para tool de análisis visual) ─────────────────
 ipcMain.handle('capture-screenshot-base64', async (event) => {
   try {
-    const win = BrowserWindow.fromWebContents(event.sender);
-    if (!win) return { success: false, error: 'No window' };
-    const image = await win.webContents.capturePage();
-    return { success: true, data: image.toPNG().toString('base64') };
+    const { desktopCapturer } = require('electron');
+    const sources = await desktopCapturer.getSources({
+      types: ['screen'],
+      thumbnailSize: { width: 1280, height: 720 }
+    });
+    if (!sources || sources.length === 0) {
+      // Fallback: capturar solo la ventana actual
+      const win = BrowserWindow.fromWebContents(event.sender);
+      if (!win) return { success: false, error: 'No window' };
+      const image = await win.webContents.capturePage();
+      const resized = image.resize({ width: 640 });
+      return { success: true, data: resized.toJPEG(30).toString('base64') };
+    }
+    const image = sources[0].thumbnail;
+    const resized = image.resize({ width: 640 });
+    return { success: true, data: resized.toJPEG(30).toString('base64') };
   } catch (e) {
-    return { success: false, error: e.message };
+    // Fallback: capturar solo la ventana actual
+    try {
+      const win = BrowserWindow.fromWebContents(event.sender);
+      if (!win) throw new Error('No window');
+      const image = await win.webContents.capturePage();
+      const resized = image.resize({ width: 640 });
+      return { success: true, data: resized.toJPEG(30).toString('base64') };
+    } catch (e2) {
+      return { success: false, error: e.message };
+    }
   }
 });
 

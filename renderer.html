@@ -2,8 +2,8 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' http://localhost:3001 https://generativelanguage.googleapis.com wss://generativelanguage.googleapis.com https://api.github.com https://api.openweathermap.org https://gmail.googleapis.com https://oauth2.googleapis.com https://www.googleapis.com https://accounts.google.com https://news.google.com https://html.duckduckgo.com https://api.stackexchange.com https://hn.algolia.com https://www.googleapis.com; img-src 'self' data:; media-src 'self' blob:; frame-src 'self' http://localhost:3001 https://accounts.google.com https://www.youtube.com; base-uri 'self'; object-src 'none';">
-  <title>JARVIS</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' http://localhost:3001 http://localhost:5678 http://localhost:11434 https://generativelanguage.googleapis.com wss://generativelanguage.googleapis.com; img-src 'self' data: https:; media-src 'self' blob:; frame-src 'self' http://localhost:3001 http://localhost:5678; form-action 'self'; base-uri 'self'; object-src 'none';">
+  <title>JARVIS JS</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Orbitron:wght@400;600;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
 </head>
@@ -18,10 +18,24 @@
   <div class="auth-overlay" id="auth-overlay">
     <div class="auth-modal" id="auth-modal">
 
-      <!-- Step 1: Welcome -->
+      <!-- Step progress indicator -->
+      <div class="auth-progress" id="auth-progress">
+        <div class="auth-progress-dot active" data-step="1"></div>
+        <div class="auth-progress-line"></div>
+        <div class="auth-progress-dot" data-step="2"></div>
+        <div class="auth-progress-line"></div>
+        <div class="auth-progress-dot" data-step="3"></div>
+        <div class="auth-progress-line"></div>
+        <div class="auth-progress-dot" data-step="4"></div>
+        <div class="auth-progress-line"></div>
+        <div class="auth-progress-dot" data-step="5"></div>
+        <div class="auth-progress-line"></div>
+        <div class="auth-progress-dot" data-step="6"></div>
+      </div>
+
+      <!-- Step 1: Welcome + Social Media -->
       <div class="auth-step active" id="auth-step-welcome">
-        <!-- Stark Logo SVG Mini -->
-        <div style="width: 90px; height: 90px; margin: 0 auto 20px; filter: drop-shadow(0 0 10px rgba(0,191,255,0.5));">
+        <div style="width: 90px; height: 90px; margin: 0 auto 15px; filter: drop-shadow(0 0 10px rgba(0,191,255,0.5));">
           <svg viewBox="0 0 200 200" style="width:100%; height:100%;">
             <circle cx="100" cy="100" r="85" fill="none" stroke="#00bfff" stroke-width="1.5" stroke-opacity="0.2" />
             <circle cx="100" cy="100" r="70" fill="none" stroke="#00bfff" stroke-width="3" stroke-dasharray="25 15" stroke-opacity="0.4" />
@@ -31,20 +45,27 @@
         </div>
 
         <div class="auth-header">
-          <h2 style="font-family:'Orbitron', sans-serif; font-size:1.3rem; letter-spacing:3px; color:#fff; text-shadow:0 0 10px rgba(0,191,255,0.3);">JARVIS MK.II — SISTEMA LISTO</h2>
+          <h2 style="font-family:'Orbitron', sans-serif; font-size:1.3rem; letter-spacing:3px; color:#fff; text-shadow:0 0 10px rgba(0,191,255,0.3);">JARVIS JS</h2>
           <p style="font-size:0.75rem; color:rgba(0,191,255,0.7); letter-spacing:1px; margin-top:4px;">Asistente cognitivo de inteligencia artificial para Windows</p>
         </div>
 
-        <p style="font-size:0.72rem; color:var(--text-dim); line-height:1.6; text-align:center; max-width:320px; margin: 20px auto 25px;">
+        <p style="font-size:0.72rem; color:var(--text-dim); line-height:1.6; text-align:center; max-width:320px; margin: 15px auto 10px;">
           Amplifica tu productividad, automatiza tareas y controla tu sistema Windows en tiempo real mediante voz y algoritmos cognitivos avanzados.
         </p>
+
+        <!-- Social Media Buttons -->
+        <div style="display:flex; justify-content:center; gap:10px; margin: 12px 0 18px;">
+          <a href="https://www.youtube.com/@JarvisJSS" target="_blank" class="auth-social-btn" style="background:rgba(255,0,0,0.12); border-color:rgba(255,0,0,0.3); color:#ff4444;">▶ YouTube</a>
+          <a href="https://www.instagram.com/jarvis_js2006" target="_blank" class="auth-social-btn" style="background:rgba(225,48,108,0.12); border-color:rgba(225,48,108,0.3); color:#ff2d79;">📷 Instagram</a>
+          <a href="https://www.tiktok.com/@jarvis_jjs" target="_blank" class="auth-social-btn" style="background:rgba(255,255,255,0.06); border-color:rgba(255,255,255,0.15); color:#fff;">🎵 TikTok</a>
+        </div>
+        <p style="font-size:0.6rem; color:var(--text-dim); text-align:center; margin-bottom:18px;">Seguinos en redes para novedades y actualizaciones</p>
 
         <button class="auth-btn" id="auth-welcome-btn" style="box-shadow: 0 0 15px rgba(0, 191, 255, 0.3);">Comenzar configuración</button>
       </div>
 
       <!-- Step 2: Gemini API Key -->
       <div class="auth-step" id="auth-step-gemini-key">
-        <!-- SVG Key Icon -->
         <div style="width: 60px; height: 60px; margin: 0 auto 15px; filter: drop-shadow(0 0 6px rgba(0,191,255,0.4));">
           <svg viewBox="0 0 24 24" fill="none" stroke="#00bfff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:100%; height:100%;">
             <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
@@ -67,19 +88,270 @@
 
         <div class="auth-error" id="auth-gemini-error" style="display:none; font-size:0.65rem; padding:8px; border-radius:6px; border:1px solid rgba(255,59,48,0.3); background:rgba(255,59,48,0.08); color:#ff453a; margin-bottom:12px; text-align:left;"></div>
         
-        <!-- Loading spinner placeholder -->
         <div id="auth-gemini-loading" style="display:none; align-items:center; justify-content:center; gap:8px; margin-bottom:15px;">
           <div style="width: 16px; height: 16px; border: 2px solid rgba(0,191,255,0.2); border-top-color: #00bfff; border-radius:50%; animation: spin 0.8s linear infinite;"></div>
           <span style="font-size: 0.65rem; color: #00bfff; font-family:monospace; letter-spacing:1px;">VALIDANDO CLAVE...</span>
         </div>
 
         <button class="auth-btn" id="auth-gemini-save-btn" disabled style="box-shadow: 0 0 10px rgba(0,191,255,0.15);">Guardar y continuar</button>
-        <button class="auth-skip-btn" id="auth-gemini-skip-btn" style="margin-top:8px; background:transparent; border:none; color:rgba(255,255,255,0.35); font-size:0.65rem; cursor:pointer; text-decoration:underline;">Saltar e iniciar modo demo</button>
+        <button class="auth-skip-btn" id="auth-gemini-skip-btn" style="margin-top:6px; background:transparent; border:none; color:rgba(255,255,255,0.35); font-size:0.65rem; cursor:pointer; text-decoration:underline;">Saltar e iniciar modo demo</button>
+        <div class="auth-nav-row" style="margin-top:10px;">
+          <button class="auth-back-btn" data-target="welcome">← Atrás</button>
+        </div>
+      </div>
+
+      <!-- Step 3: Voice & Gender -->
+      <div class="auth-step" id="auth-step-voice">
+        <div style="width: 60px; height: 60px; margin: 0 auto 15px; filter: drop-shadow(0 0 6px rgba(0,191,255,0.4)); display:flex; align-items:center; justify-content:center;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#00bfff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:44px; height:44px;">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" fill="none"/>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2" fill="none"/>
+            <line x1="12" y1="19" x2="12" y2="23" fill="none"/>
+            <line x1="8" y1="23" x2="16" y2="23" fill="none"/>
+          </svg>
+        </div>
+
+        <div class="auth-header">
+          <h2 style="font-family:'Orbitron', sans-serif; font-size:1.1rem; letter-spacing:2px; color:#fff;">VOZ DE JARVIS</h2>
+          <p style="font-size:0.7rem; color:rgba(0,191,255,0.6); margin-top:2px;">Personalizá cómo escucharás a Jarvis</p>
+        </div>
+
+        <div class="auth-field" style="margin-top:16px; text-align:left; width:100%;">
+          <label style="font-size:0.65rem; color:rgba(255,255,255,0.5); letter-spacing:1px; text-transform:uppercase; display:block; margin-bottom:8px;">Tu género</label>
+          <div style="display:flex; gap:10px;">
+            <button class="auth-choice-btn" id="auth-gender-male" data-gender="male" style="flex:1;">
+              <span style="font-size:1.5rem; display:block; margin-bottom:4px;">👨</span>
+              <span style="font-size:0.7rem;">Masculino</span>
+            </button>
+            <button class="auth-choice-btn" id="auth-gender-female" data-gender="female" style="flex:1;">
+              <span style="font-size:1.5rem; display:block; margin-bottom:4px;">👩</span>
+              <span style="font-size:0.7rem;">Femenino</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="auth-field" style="margin-top:10px; text-align:left; width:100%;">
+          <label style="font-size:0.65rem; color:rgba(255,255,255,0.5); letter-spacing:1px; text-transform:uppercase; display:block; margin-bottom:8px;">Voz preferida</label>
+          <select class="auth-select" id="auth-voice-select">
+            <option value="Fenrir">Fenrir — Voz natural masculina</option>
+            <option value="Puck">Puck — Voz neutra versátil</option>
+            <option value="Charon">Charon — Voz grave y profunda</option>
+            <option value="Aoede">Aoede — Voz femenina melódica</option>
+            <option value="Athena">Athena — Voz femenina clara</option>
+          </select>
+        </div>
+
+        <button class="auth-btn" id="auth-voice-btn" style="box-shadow: 0 0 10px rgba(0,191,255,0.15); margin-top:16px;">Continuar</button>
+        <div class="auth-nav-row" style="margin-top:8px;">
+          <button class="auth-back-btn" data-target="gemini-key">← Atrás</button>
+        </div>
+      </div>
+
+      <!-- Step 4: Personality -->
+      <div class="auth-step" id="auth-step-personality">
+        <div style="width: 60px; height: 60px; margin: 0 auto 15px; filter: drop-shadow(0 0 6px rgba(0,191,255,0.4)); display:flex; align-items:center; justify-content:center;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#00bfff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:44px; height:44px;">
+            <circle cx="12" cy="12" r="10" fill="none"/>
+            <path d="M8 14s1.5 2 4 2 4-2 4-2" fill="none"/>
+            <line x1="9" y1="9" x2="9.01" y2="9" fill="none"/>
+            <line x1="15" y1="9" x2="15.01" y2="9" fill="none"/>
+          </svg>
+        </div>
+
+        <div class="auth-header">
+          <h2 style="font-family:'Orbitron', sans-serif; font-size:1.1rem; letter-spacing:2px; color:#fff;">PERSONALIDAD</h2>
+          <p style="font-size:0.7rem; color:rgba(0,191,255,0.6); margin-top:2px;">Elegí cómo querés que Jarvis se comporte</p>
+        </div>
+
+        <div class="auth-field" style="margin-top:16px; text-align:left; width:100%;">
+          <label style="font-size:0.65rem; color:rgba(255,255,255,0.5); letter-spacing:1px; text-transform:uppercase; display:block; margin-bottom:8px;">Estilo de respuesta</label>
+          <div class="auth-personality-list" id="auth-personality-list">
+            <button class="auth-personality-btn active" data-value="companion">
+              <span class="auth-ps-label">Compañero</span>
+              <span class="auth-ps-desc">Directo, con confianza y buen humor. Como un amigo</span>
+            </button>
+            <button class="auth-personality-btn" data-value="professional">
+              <span class="auth-ps-label">Profesional</span>
+              <span class="auth-ps-desc">Preciso, eficiente y formal. Ideal para trabajo</span>
+            </button>
+            <button class="auth-personality-btn" data-value="friendly">
+              <span class="auth-ps-label">Amigable</span>
+              <span class="auth-ps-desc">Cálido y conversacional, con humor seco</span>
+            </button>
+            <button class="auth-personality-btn" data-value="strategic">
+              <span class="auth-ps-label">Estratégico</span>
+              <span class="auth-ps-desc">Directo, va al grano. Como un consultor</span>
+            </button>
+            <button class="auth-personality-btn" data-value="humorous">
+              <span class="auth-ps-label">Humorístico</span>
+              <span class="auth-ps-desc">Con humor y picardía, bromas naturales</span>
+            </button>
+          </div>
+        </div>
+
+        <button class="auth-btn" id="auth-personality-btn" style="box-shadow: 0 0 10px rgba(0,191,255,0.15); margin-top:16px;">Continuar</button>
+        <div class="auth-nav-row" style="margin-top:8px;">
+          <button class="auth-back-btn" data-target="voice">← Atrás</button>
+        </div>
+      </div>
+
+      <!-- Step 5: Permissions -->
+      <div class="auth-step" id="auth-step-permissions">
+        <div style="width: 60px; height: 60px; margin: 0 auto 15px; filter: drop-shadow(0 0 6px rgba(0,191,255,0.4)); display:flex; align-items:center; justify-content:center;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#00bfff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:44px; height:44px;">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" fill="none"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4" fill="none"/>
+          </svg>
+        </div>
+
+        <div class="auth-header">
+          <h2 style="font-family:'Orbitron', sans-serif; font-size:1.1rem; letter-spacing:2px; color:#fff;">PERMISOS</h2>
+          <p style="font-size:0.7rem; color:rgba(0,191,255,0.6); margin-top:2px;">Elegí qué funciones puede usar Jarvis</p>
+        </div>
+
+        <p style="font-size:0.6rem; color:var(--text-dim); text-align:center; max-width:320px; margin: 8px auto 4px;">
+          Podés cambiar esto después en Configuración &gt; Permisos
+        </p>
+
+        <div class="auth-perms-list" id="auth-perms-list" style="margin:8px 0; text-align:left; width:100%;">
+          <label class="auth-perm-item" data-category="system">
+            <div class="auth-perm-info">
+              <span class="auth-perm-title">🚀 SISTEMA</span>
+              <span class="auth-perm-desc">Apps, volumen/brillo, comandos, notificaciones</span>
+            </div>
+            <span class="auth-perm-toggle-wrap">
+              <input type="checkbox" class="auth-perm-toggle" checked>
+              <span class="auth-perm-slider"></span>
+            </span>
+          </label>
+          <label class="auth-perm-item" data-category="files">
+            <div class="auth-perm-info">
+              <span class="auth-perm-title">📁 ARCHIVOS</span>
+              <span class="auth-perm-desc">Leer/escribir archivos, buscar, YouTube, editar videos</span>
+            </div>
+            <span class="auth-perm-toggle-wrap">
+              <input type="checkbox" class="auth-perm-toggle" checked>
+              <span class="auth-perm-slider"></span>
+            </span>
+          </label>
+          <label class="auth-perm-item" data-category="screen">
+            <div class="auth-perm-info">
+              <span class="auth-perm-title">🖥️ PANTALLA</span>
+              <span class="auth-perm-desc">Capturas, teclado, portapapeles, recordatorios</span>
+            </div>
+            <span class="auth-perm-toggle-wrap">
+              <input type="checkbox" class="auth-perm-toggle" id="auth-perm-screen" checked>
+              <span class="auth-perm-slider"></span>
+            </span>
+          </label>
+          <label class="auth-perm-item" data-category="integrations">
+            <div class="auth-perm-info">
+              <span class="auth-perm-title">🔗 INTEGRACIONES</span>
+              <span class="auth-perm-desc">Google, Spotify, GitHub, Telegram, Discord, Notion</span>
+            </div>
+            <span class="auth-perm-toggle-wrap">
+              <input type="checkbox" class="auth-perm-toggle" checked>
+              <span class="auth-perm-slider"></span>
+            </span>
+          </label>
+        </div>
+
+        <button class="auth-btn" id="auth-permissions-btn" style="box-shadow: 0 0 10px rgba(0,191,255,0.15);">Continuar</button>
+        <div class="auth-nav-row" style="margin-top:8px;">
+          <button class="auth-back-btn" data-target="personality">← Atrás</button>
+        </div>
+      </div>
+
+      <!-- Step 6: Ready -->
+      <div class="auth-step" id="auth-step-ready">
+        <div style="width: 80px; height: 80px; margin: 0 auto 15px; filter: drop-shadow(0 0 15px rgba(46,213,115,0.5));">
+          <svg viewBox="0 0 200 200" style="width:100%; height:100%;">
+            <circle cx="100" cy="100" r="85" fill="none" stroke="#2ed573" stroke-width="2" stroke-opacity="0.3" />
+            <circle cx="100" cy="100" r="50" fill="none" stroke="#2ed573" stroke-width="2.5" stroke-dasharray="25 15" stroke-opacity="0.5" />
+            <circle cx="100" cy="100" r="25" fill="rgba(46,213,115,0.15)" stroke="#2ed573" stroke-width="1.5" />
+            <path d="M85 100l10 10 20-20" fill="none" stroke="#2ed573" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </div>
+
+        <div class="auth-header">
+          <h2 style="font-family:'Orbitron', sans-serif; font-size:1.2rem; letter-spacing:3px; color:#fff; text-shadow:0 0 10px rgba(46,213,115,0.3);">TODO LISTO</h2>
+          <p style="font-size:0.75rem; color:rgba(46,213,115,0.7); letter-spacing:1px; margin-top:4px;">Tu configuración está completa</p>
+        </div>
+
+        <div id="auth-summary" style="margin: 18px auto; text-align:left; width:100%; max-width:280px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:8px; padding:12px 16px;">
+          <div class="auth-summary-row"><span>🤖 API Key:</span><span id="summ-api" style="color:var(--text-dim);">—</span></div>
+          <div class="auth-summary-row"><span>🎤 Voz:</span><span id="summ-voice" style="color:var(--text-dim);">—</span></div>
+          <div class="auth-summary-row"><span>🧠 Personalidad:</span><span id="summ-personality" style="color:var(--text-dim);">—</span></div>
+          <div class="auth-summary-row"><span>🔒 Permisos:</span><span id="summ-permissions" style="color:var(--text-dim);">—</span></div>
+        </div>
+
+        <button class="auth-btn" id="auth-ready-btn" style="box-shadow: 0 0 15px rgba(46,213,115,0.3); background:linear-gradient(135deg, rgba(46,213,115,0.2), rgba(0,191,255,0.1)); border-color:rgba(46,213,115,0.4); color:#2ed573;">¡Iniciar Jarvis!</button>
+        <div class="auth-nav-row" style="margin-top:8px;">
+          <button class="auth-back-btn" data-target="permissions">← Atrás</button>
+        </div>
+
       </div>
 
     </div>
   </div>
 
+  <!-- Final confirmation dialog — fuera del auth-modal para que position:fixed cubra toda la ventana -->
+  <div class="auth-confirm-overlay" id="auth-confirm-overlay" style="display:none;">
+    <div class="auth-confirm-card" id="auth-confirm-card">
+      <div class="auth-confirm-header">
+        <div class="auth-confirm-icon">🔒</div>
+        <div>
+          <div class="auth-confirm-label">CONFIRMAR CONFIGURACIÓN</div>
+          <div class="auth-confirm-sub">Revisión final de permisos</div>
+        </div>
+      </div>
+
+      <div class="auth-confirm-body">
+        <p class="auth-confirm-intro">JARVIS va a operar con los siguientes permisos. Revisalos con atención antes de continuar:</p>
+
+        <div class="auth-confirm-perms" id="auth-confirm-perms">
+          <div class="auth-confirm-perm" data-cat="system">
+            <span class="auth-confirm-perm-icon">🚀</span>
+            <div class="auth-confirm-perm-info">
+              <span class="auth-confirm-perm-name">SISTEMA</span>
+              <span class="auth-confirm-perm-desc">Control de apps, volumen, brillo, notificaciones</span>
+            </div>
+          </div>
+          <div class="auth-confirm-perm" data-cat="files">
+            <span class="auth-confirm-perm-icon">📁</span>
+            <div class="auth-confirm-perm-info">
+              <span class="auth-confirm-perm-name">ARCHIVOS</span>
+              <span class="auth-confirm-perm-desc">Leer, escribir, buscar archivos en tu equipo</span>
+            </div>
+          </div>
+          <div class="auth-confirm-perm" data-cat="screen">
+            <span class="auth-confirm-perm-icon">🖥️</span>
+            <div class="auth-confirm-perm-info">
+              <span class="auth-confirm-perm-name">PANTALLA</span>
+              <span class="auth-confirm-perm-desc">Capturas, teclado, portapapeles</span>
+            </div>
+          </div>
+          <div class="auth-confirm-perm" data-cat="integrations">
+            <span class="auth-confirm-perm-icon">🔗</span>
+            <div class="auth-confirm-perm-info">
+              <span class="auth-confirm-perm-name">INTEGRACIONES</span>
+              <span class="auth-confirm-perm-desc">Google, Spotify, GitHub, Telegram, Discord</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="auth-confirm-warning">
+          <span style="font-size:14px; line-height:1.4;">🛡️</span>
+          <span>Al confirmar, JARVIS podrá ejecutar comandos del sistema, acceder a tus archivos, capturar la pantalla y usar integraciones de terceros en tu nombre. Estos permisos son necesarios para que JARVIS funcione correctamente. Podés revocarlos en cualquier momento desde <strong>Configuración &gt; Permisos</strong>.</span>
+        </div>
+      </div>
+
+      <div class="auth-confirm-footer">
+        <button class="auth-confirm-btn secondary" id="auth-confirm-cancel">Cancelar</button>
+        <button class="auth-confirm-btn primary" id="auth-confirm-accept">Confirmar e Iniciar JARVIS</button>
+      </div>
+    </div>
+  </div>
 
 
   <!-- MAIN LAYOUT -->
@@ -176,6 +448,52 @@
           </div>
         </div>
 
+        <!-- RECORDATORIOS: indicador campana junto al reactor -->
+        <div id="reminders-panel" style="display:none; position:absolute; top:8px; right:8px; z-index:100;">
+          <button id="reminders-trigger" title="Recordatorios" style="
+            background: rgba(0,0,0,0.4);
+            border: 1px solid rgba(99,179,237,0.25);
+            color: #7ecfff;
+            border-radius: 50%;
+            width: 32px; height: 32px;
+            font-size: 1rem;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            position: relative;
+            transition: all 0.2s;
+          ">🔔<span id="reminders-count" style="
+            display: none;
+            position: absolute;
+            top: -4px; right: -4px;
+            background: #ff6b6b;
+            color: #fff;
+            font-size: 0.55rem;
+            font-weight: 700;
+            border-radius: 50%;
+            width: 14px; height: 14px;
+            line-height: 14px;
+            text-align: center;
+          ">0</span></button>
+          <!-- Dropdown de recordatorios -->
+          <div id="reminders-dropdown" style="
+            display: none;
+            position: absolute;
+            top: 38px; right: 0;
+            width: 260px;
+            background: rgba(10,14,30,0.97);
+            border: 1px solid rgba(99,179,237,0.2);
+            border-radius: 10px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+            padding: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            z-index: 200;
+          ">
+            <div style="font-size:0.65rem;color:var(--text-dim);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;font-weight:600;">⏰ Mis Recordatorios</div>
+            <div id="reminders-list"></div>
+          </div>
+        </div>
+
         <!-- PROGRESS: indicador de herramientas en ejecucion -->
         <div id="progress-area" class="progress-area" style="display:none">
           <div id="progress-steps" class="prog-steps"></div>
@@ -185,6 +503,23 @@
             </div>
             <span id="prog-pct-text" class="prog-pct-label">0%</span>
           </div>
+        </div>
+
+        <!-- YOUTUBE DOWNLOAD PROGRESS -->
+        <div id="yt-prog-area" class="yt-progress-area" style="display:none">
+          <div class="yt-prog-header">
+            <span id="yt-prog-title" class="yt-prog-title">Descargando...</span>
+            <button id="yt-prog-close" class="yt-prog-close">X</button>
+          </div>
+          <div class="yt-prog-bar">
+            <div id="yt-prog-fill" class="yt-prog-fill"></div>
+          </div>
+          <div class="yt-prog-details">
+            <span id="yt-prog-pct" class="yt-prog-pct">0%</span>
+            <span id="yt-prog-speed" class="yt-prog-speed"></span>
+            <span id="yt-prog-eta" class="yt-prog-eta"></span>
+          </div>
+          <div id="yt-prog-status" class="yt-prog-status"></div>
         </div>
 
         <!-- CLIMA: panel de pronostico visual -->
@@ -234,7 +569,8 @@
               <p id="msg-jarvis-text" class="msg-text jarvis-text"></p>
               <div class="msg-buttons" id="msg-buttons">
                 <button id="msg-cancel-btn" class="msg-cancel-btn" title="Cancelar respuesta" style="display:none">✕</button>
-              </div>
+        </div>
+        <!-- FIN message-area -->
             </div>
             <!-- Indicador de actividad -->
             <div class="msg-indicator" id="msg-indicator"></div>
@@ -243,13 +579,25 @@
 
         <!-- BARRA DE CHAT -->
         <div class="chat-bar" id="chat-bar">
-          <button class="mic-btn" id="mic-btn" title="Microfono">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-          </button>
-          <button class="attach-btn" id="attach-btn" title="Adjuntar archivo">+</button>
-          <div class="chat-input-wrap">
-            <textarea id="chat-text-input" class="chat-textarea" placeholder="Escribe un mensaje..." rows="1" autocomplete="off"></textarea>
+          <!-- Preview de imagen pegada -->
+          <div id="chat-image-preview" style="display:none; width:100%; padding:6px 8px 0; position:relative;">
+            <div style="display:flex;align-items:center;gap:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(99,179,237,0.2);border-radius:8px;padding:6px 10px;">
+              <img id="chat-img-thumb" style="height:48px;width:auto;border-radius:4px;object-fit:cover;" src="" alt="imagen">
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:0.65rem;color:#7ecfff;font-weight:600;">📷 Imagen adjunta</div>
+                <div id="chat-img-name" style="font-size:0.6rem;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></div>
+              </div>
+              <button id="chat-img-remove" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:1rem;padding:2px 6px;" title="Quitar imagen">✕</button>
+            </div>
           </div>
+          <button class="attach-btn" id="attach-btn" title="Adjuntar archivo/imagen">+</button>
+          <input type="file" id="chat-image-file-input" accept="image/*" style="display:none;">
+          <div class="chat-input-wrap">
+            <textarea id="chat-text-input" class="chat-textarea" placeholder="Escribe un mensaje o pega una imagen (Ctrl+V)..." rows="1" autocomplete="off"></textarea>
+          </div>
+          <button class="mic-btn" id="mic-btn" title="Hablar">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3zm7 8a7 7 0 0 1-14 0H3a9 9 0 0 0 8 8.94V22h2v-3.06A9 9 0 0 0 21 10h-2z"/></svg>
+          </button>
           <button class="send-btn" id="chat-send-btn" title="Enviar">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
           </button>
@@ -277,15 +625,6 @@
       <div class="rp-row"><span>Latencia:</span> <span id="diag-latency">-</span></div>
     </div>
     <div class="rp-section">
-      <div class="rp-section-title">Pensamiento</div>
-      <div class="thinking-toggle" id="thinking-toggle">
-        Pensando... <span class="toggle-icon">v</span>
-      </div>
-      <div class="thinking-body" id="thinking-body">
-        <div class="thinking-placeholder">Sin procesos activos.</div>
-      </div>
-    </div>
-    <div class="rp-section">
       <div class="rp-section-title">Procesos</div>
       <div id="diag-process-list" class="diag-process-list">Cargando...</div>
     </div>
@@ -294,8 +633,48 @@
       <button id="supervisor-btn" class="rp-btn">Reporte del Supervisor</button>
       <button id="sys-status-btn" class="rp-btn">Estado del Sistema</button>
       <button id="screenshot-btn" class="rp-btn">Captura de Pantalla</button>
+      <button id="dev-console-btn" class="rp-btn" style="border-color:rgba(126,207,255,0.3);color:#7ecfff;" title="Ctrl+1 para abrir/cerrar">⌨ Consola Dev</button>
     </div>
   </aside>
+
+
+  <!-- UPDATE OVERLAY -->
+  <div class="update-overlay" id="update-overlay"></div>
+
+  <!-- UPDATE DIALOG -->
+  <div class="update-dialog" id="update-dialog">
+    <div class="update-dialog-inner">
+      <div class="update-header">
+        <div class="update-icon">
+          <svg viewBox="0 0 40 40" width="40" height="40">
+            <circle cx="20" cy="20" r="18" fill="none" stroke="#00BFFF" stroke-width="2"/>
+            <path d="M20 12v16M12 20l8 8 8-8" stroke="#00FF88" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="update-title">Actualización disponible</div>
+      </div>
+      <div class="update-body">
+        <div class="update-status">Preparando...</div>
+        <div class="update-version-label">Versión: <span class="update-version">—</span></div>
+        <div class="update-notes-label">Novedades:</div>
+        <div class="update-notes">—</div>
+      </div>
+      <div class="update-progress-container">
+        <div class="update-progress-bar">
+          <div class="update-progress-fill" id="update-progress-fill"></div>
+        </div>
+        <div class="update-progress-label" id="update-progress-label">0%</div>
+      </div>
+      <div class="update-footer">
+        <button class="update-btn secondary" id="update-skip-btn" onclick="document.getElementById('update-dialog').classList.remove('visible');document.getElementById('update-overlay').classList.remove('visible')">Más tarde</button>
+        <button class="update-btn primary" id="update-action-btn">Descargar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- UPDATE TOAST -->
+  <div class="update-toast" id="update-toast"></div>
+
 
   <!-- CONFIG MODAL -->
   <div class="config-overlay" id="config-modal">
@@ -309,9 +688,9 @@
         <button class="tab-btn" data-tab="tab-voice">Voz</button>
         <button class="tab-btn" data-tab="tab-rules">Reglas</button>
         <button class="tab-btn" data-tab="tab-api-keys">Proveedores</button>
-        <button class="tab-btn" data-tab="tab-feedback">Soporte</button>
-        <button class="tab-btn" data-tab="tab-permissions">Permisos</button>
+        <button class="tab-btn" data-tab="tab-permissions" style="display:none">Permisos</button>
         <button class="tab-btn" data-tab="tab-advanced">Avanzado</button>
+        <button class="tab-btn" data-tab="tab-about">Acerca de</button>
       </div>
       <div class="config-tab-content">
         <div class="tab-pane active" id="tab-general">
@@ -354,12 +733,20 @@
           </div>
           <div class="config-field">
             <label>Ciudad (para el clima)</label>
-            <input type="text" id="city-input" class="config-input" placeholder="Madrid">
+            <input type="text" id="city-input" class="config-input" placeholder="Asuncion">
+            <p class="setup-key-hint" style="margin-top:4px;">Se guarda automáticamente al hacer clic en Guardar. Luego decí "clima" sin especificar ciudad.</p>
+          </div>
+          <div class="config-field" style="margin-top:12px; display:flex; align-items:center; gap:10px;">
+            <label style="margin:0; width:auto; cursor:pointer; font-size:0.75rem;">Interrumpir a Jarvis mientras habla</label>
+            <label class="perm-toggle-wrap" style="margin-left:auto;">
+              <input type="checkbox" class="perm-toggle" id="interrupt-toggle" checked>
+              <span class="perm-slider"></span>
+            </label>
           </div>
         </div>
         <div class="tab-pane" id="tab-voice">
           <div class="config-field">
-            <label>Género de voz</label>
+            <label>Genero de voz</label>
             <select id="voice-gender-select" class="config-select">
               <option value="male">Masculina</option>
               <option value="female">Femenina</option>
@@ -374,7 +761,7 @@
               <option value="Aoede">Aoede (Femenino)</option>
               <option value="Athena">Athena (Femenino)</option>
             </select>
-            <p class="setup-key-hint">Las voces femeninas (Aoede, Athena) están disponibles en Gemini. Seleccioná "Femenina" arriba para filtrar.</p>
+            <p class="setup-key-hint">Las voces se filtran según el género seleccionado arriba.</p>
           </div>
         </div>
         <div class="tab-pane" id="tab-rules">
@@ -389,102 +776,85 @@
         </div>
         <div class="tab-pane" id="tab-api-keys">
           <div class="config-field">
-            <label>API Key de Gemini</label>
+            <label>🌐 Gemini (Google)</label>
             <div class="setup-key-field">
               <input type="password" id="config-gemini-key" class="setup-key-input" placeholder="AIzaSy...">
               <button class="setup-toggle-btn" id="config-gemini-toggle" type="button">👁</button>
             </div>
-            <p class="setup-key-hint">Consigue una clave en <a href="https://aistudio.google.com/" target="_blank">Google AI Studio</a>.</p>
+            <p class="setup-key-hint"><a href="https://aistudio.google.com/" target="_blank">Google AI Studio</a> — Gratis con límite generoso</p>
           </div>
-          <div class="config-field" style="margin-top: 10px;">
-            <button class="config-btn primary" id="config-test-gemini-btn">Probar Clave</button>
-            <div id="config-gemini-status" class="setup-key-error" style="display:none; margin-top:8px;"></div>
+          <div class="config-field" style="margin-top:4px;">
+            <button class="config-btn primary" id="config-test-gemini-btn" style="font-size:0.7rem;">Probar clave Gemini</button>
+            <div id="config-gemini-status" class="setup-key-error" style="display:none; margin-top:6px;"></div>
+          </div>
+          <div class="config-field" style="margin-top:14px; border-top:1px solid var(--border-color); padding-top:14px;">
+            <label>🤖 ChatGPT (OpenAI)</label>
+            <div class="setup-key-field">
+              <input type="password" id="config-openai-key" class="setup-key-input" placeholder="sk-...">
+              <button class="setup-toggle-btn" id="config-openai-toggle" type="button">👁</button>
+            </div>
+            <p class="setup-key-hint"><a href="https://platform.openai.com/api-keys" target="_blank">OpenAI Platform</a> — Modelos GPT-4o / GPT-4o-mini</p>
+          </div>
+          <div class="config-field">
+            <label>🧠 Claude (Anthropic)</label>
+            <div class="setup-key-field">
+              <input type="password" id="config-claude-key" class="setup-key-input" placeholder="sk-ant-...">
+              <button class="setup-toggle-btn" id="config-claude-toggle" type="button">👁</button>
+            </div>
+            <p class="setup-key-hint"><a href="https://console.anthropic.com/" target="_blank">Anthropic Console</a> — Modelo Claude Sonnet</p>
+          </div>
+          <div class="config-field">
+            <label>🔍 DeepSeek</label>
+            <div class="setup-key-field">
+              <input type="password" id="config-deepseek-key" class="setup-key-input" placeholder="sk-...">
+              <button class="setup-toggle-btn" id="config-deepseek-toggle" type="button">👁</button>
+            </div>
+            <p class="setup-key-hint"><a href="https://platform.deepseek.com/" target="_blank">DeepSeek Platform</a> — Modelo DeepSeek-V3</p>
           </div>
           <div class="config-field" style="margin-top:16px; border-top:1px solid var(--border-color); padding-top:16px;">
-            <label>Google Search API Key</label>
+            <label>🔎 Google Search API (para búsquedas web)</label>
             <div class="setup-key-field">
               <input type="password" id="config-google-api-key" class="setup-key-input" placeholder="AIzaSy...">
               <button class="setup-toggle-btn" id="config-google-api-toggle" type="button">👁</button>
             </div>
-            <p class="setup-key-hint">Consigue una API Key en <a href="https://console.cloud.google.com/apis/credentials" target="_blank">Google Cloud Console</a> y activa la <strong>Custom Search API</strong>.</p>
+            <p class="setup-key-hint"><a href="https://console.cloud.google.com/apis/credentials" target="_blank">Google Cloud Console</a> — Activar Custom Search API</p>
           </div>
           <div class="config-field">
             <label>Google Search Engine ID (CX)</label>
             <input type="text" id="config-google-cx" class="config-input" placeholder="0123456789abcdef">
-            <p class="setup-key-hint">Crea un buscador en <a href="https://cse.google.com/cse/all" target="_blank">Google CSE</a> (busca en toda la web, no solo un sitio) y copia el ID.</p>
-          </div>
-        </div>
-        <div class="tab-pane" id="tab-feedback">
-          <div style="font-size:0.7rem; color:var(--text-dim); margin-bottom:8px; line-height: 1.3;">
-            Envía tus comentarios o reportes de errores directamente al desarrollador. Soporta archivos de hasta 25MB.
-          </div>
-          <div class="config-field">
-            <label>Descripción / Mensaje</label>
-            <textarea id="feedback-message" class="config-textarea" placeholder="Escribe aquí tu reporte..." style="min-height:90px;"></textarea>
-          </div>
-          <div class="config-field">
-            <label>Adjuntar Captura / Vídeo (Máx. 25MB)</label>
-            <input type="file" id="feedback-file" class="config-input" accept="image/*,video/*" style="font-size:0.75rem; padding: 6px 10px;">
-          </div>
-          <div class="config-field" style="margin-top: 10px;">
-            <button class="config-btn primary" id="config-send-feedback-btn">Enviar Reporte</button>
-            <div id="config-feedback-status" class="int-result" style="display:none; margin-top:8px;"></div>
+            <p class="setup-key-hint"><a href="https://cse.google.com/cse/all" target="_blank">Google CSE</a> — Buscar en toda la web</p>
           </div>
         </div>
         <div class="tab-pane" id="tab-permissions">
-          <div style="font-size:0.65rem; color:var(--text-dim); margin-bottom:8px;">
-            Controlá qué acciones puede ejecutar Jarvis automáticamente. Los permisos marcados no requieren confirmación. Desactivá los que quieras autorizar siempre.
-          </div>
-          <div class="perms-list" id="perms-list">
-            <label class="perm-item"><input type="checkbox" id="perm-open-browser" checked><span>Abrir navegador</span></label>
-            <label class="perm-item"><input type="checkbox" id="perm-launch-app" checked><span>Abrir aplicaciones</span></label>
-            <label class="perm-item"><input type="checkbox" id="perm-set-volume" checked><span>Cambiar volumen</span></label>
-            <label class="perm-item"><input type="checkbox" id="perm-file-operations" checked><span>Operaciones con archivos (leer/escribir/borrar)</span></label>
-            <label class="perm-item"><input type="checkbox" id="perm-execute-ps" checked><span>Ejecutar comandos PowerShell</span></label>
-            <label class="perm-item"><input type="checkbox" id="perm-download-youtube" checked><span>Descargar videos YouTube</span></label>
-            <label class="perm-item"><input type="checkbox" id="perm-edit-video" checked><span>Editar videos con FFmpeg</span></label>
-            <label class="perm-item"><input type="checkbox" id="perm-screenshot" checked><span>Tomar capturas de pantalla</span></label>
-            <label class="perm-item"><input type="checkbox" id="perm-keyboard" checked><span>Atajos de teclado (type_text/press_keys)</span></label>
-            <label class="perm-item"><input type="checkbox" id="perm-clipboard" checked><span>Acceso al portapapeles</span></label>
-            <label class="perm-item"><input type="checkbox" id="perm-find-files" checked><span>Buscar archivos en el sistema</span></label>
-            <label class="perm-item"><input type="checkbox" id="perm-system-stats" checked><span>Ver estadísticas del sistema</span></label>
-            <label class="perm-item"><input type="checkbox" id="perm-set-reminder" checked><span>Crear recordatorios y temporizadores</span></label>
-            <label class="perm-item"><input type="checkbox" id="perm-notifications" checked><span>Enviar notificaciones</span></label>
+          <div style="font-size:0.7rem; color:var(--text-dim); text-align:center; padding:30px 20px; line-height:1.6;">
+            Los permisos se configuran durante la configuración inicial de Jarvis.<br><br>
+            <span style="font-size:0.65rem; color:var(--text-muted);">Para cambiarlos, usá el comando "abrí configuración" o reiniciá el onboarding desde Ajustes Avanzados.</span>
           </div>
         </div>
         <div class="tab-pane" id="tab-advanced">
           <div class="config-field">
             <label>Calidad grafica</label>
             <select id="graphics-select" class="config-select">
-              <option value="low">Baja</option>
-              <option value="medium">Media</option>
-              <option value="high">Alta</option>
-              <option value="ultra">Ultra</option>
+              <option value="low">Baja — minimo rendimiento, maxima compatibilidad</option>
+              <option value="medium">Media — equilibrio entre estetica y rendimiento</option>
+              <option value="high">Alta — efectos visuales completos</option>
+              <option value="ultra">Ultra (Experimental) — maxima calidad, alto consumo</option>
             </select>
           </div>
-          <div class="config-field" style="flex-direction:row;align-items:center;gap:8px;">
-            <input type="checkbox" id="anim-toggle">
-            <label>Animaciones</label>
-          </div>
-          <div class="config-field" style="flex-direction:row;align-items:center;gap:8px;">
-            <input type="checkbox" id="sfx-toggle">
-            <label>Efectos de sonido</label>
-          </div>
-          <div class="config-field" style="flex-direction:row;align-items:center;gap:8px;">
-            <input type="checkbox" id="always-on-toggle">
-            <label>Siempre activo (modo全天候)</label>
-          </div>
-          <div class="config-field" style="flex-direction:row;align-items:center;gap:8px;">
-            <input type="checkbox" id="theme-toggle-config">
-            <label>Modo claro</label>
+          <div class="config-field" style="flex-direction:row;align-items:center;gap:10px;">
+            <label class="perm-item" style="margin:0;padding:0;background:none;border:none;">
+              <input type="checkbox" class="perm-toggle" id="anim-toggle">
+              <span class="perm-slider"></span>
+            </label>
+            <label for="anim-toggle" style="font-size:0.75rem;cursor:pointer;">Animaciones</label>
           </div>
           <div class="config-field">
-            <label>Sensibilidad del microfono</label>
+            <label>Sensibilidad del microfono (deteccion de voz e interrupcion)</label>
             <input type="range" id="vad-slider" min="50" max="800" step="10">
             <div style="display:flex;gap:6px;margin-top:4px;">
-              <button class="config-btn small" data-vad="50" style="font-size:0.6rem">Máxima (acento)</button>
-              <button class="config-btn small" data-vad="200" style="font-size:0.6rem">Normal</button>
-              <button class="config-btn small" data-vad="500" style="font-size:0.6rem">Solo voz fuerte</button>
+              <button class="config-btn small" data-vad="50" style="font-size:0.6rem">Maxima</button>
+              <button class="config-btn small" data-vad="300" style="font-size:0.6rem">Normal</button>
+              <button class="config-btn small" data-vad="600" style="font-size:0.6rem">Voz fuerte</button>
             </div>
           </div>
           <div class="config-field" style="flex-direction:row;align-items:center;gap:8px;">
@@ -495,8 +865,72 @@
               <button class="config-btn small" id="confirm-no-btn">No</button>
             </span>
           </div>
-
         </div>
+        <div class="tab-pane" id="tab-about">
+          <div style="text-align:center;padding:20px 0;">
+            <div style="font-size:2.5rem;font-weight:700;background:linear-gradient(135deg,#00BFFF,#00FF88);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:2px;">JARVIS</div>
+            <div style="font-size:0.8rem;color:var(--text-dim);margin:4px 0 8px;">Asistente Personal Inteligente</div>
+            <div style="font-size:1.1rem;font-weight:600;color:var(--accent);" id="about-version">v3.0.0</div>
+            <div style="font-size:0.7rem;color:var(--text-dim);margin:4px 0 20px;">Electron + Gemini Live API</div>
+            <div style="font-size:0.75rem;color:var(--text-dim);margin-bottom:12px;line-height:1.5;">
+              Desarrollado por echamo89-wq<br>
+              &copy; 2026 JARVIS Project
+            </div>
+            <div style="font-size:0.7rem;color:var(--text-dim);margin-bottom:16px;">
+              Companion cognitivo de inteligencia artificial para Windows.<br>
+              Automatizacion, investigacion y control del sistema en tiempo real.
+            </div>
+            <div style="margin-bottom:16px;">
+              <button class="config-btn primary" id="check-for-updates-btn" style="padding:8px 24px;font-size:0.8rem;">Buscar actualizaciones</button>
+            </div>
+
+            <!-- Redes sociales -->
+            <div style="border-top:1px solid rgba(99,179,237,0.1);padding-top:16px;margin-bottom:16px;">
+              <div style="font-size:0.65rem;color:var(--text-dim);letter-spacing:1px;margin-bottom:10px;text-transform:uppercase;">Síguenos</div>
+              <div style="display:flex;justify-content:center;gap:10px;flex-wrap:wrap;">
+                <a href="https://www.youtube.com/@JarvisJSS" target="_blank" style="color:#FF0000;text-decoration:none;font-size:0.75rem;padding:6px 14px;border:1px solid rgba(255,0,0,0.2);border-radius:6px;display:flex;align-items:center;gap:5px;transition:all 0.2s;">▶ YouTube</a>
+                <a href="https://www.instagram.com/jarvis_js2006" target="_blank" style="color:#E1306C;text-decoration:none;font-size:0.75rem;padding:6px 14px;border:1px solid rgba(225,48,108,0.2);border-radius:6px;display:flex;align-items:center;gap:5px;transition:all 0.2s;">📷 Instagram</a>
+                <a href="https://www.tiktok.com/@jarvis_jjs" target="_blank" style="color:#fff;text-decoration:none;font-size:0.75rem;padding:6px 14px;border:1px solid rgba(255,255,255,0.2);border-radius:6px;display:flex;align-items:center;gap:5px;transition:all 0.2s;">🎵 TikTok</a>
+              </div>
+            </div>
+
+            <!-- Donar -->
+            <div style="border-top:1px solid rgba(99,179,237,0.1);padding-top:16px;">
+              <div style="font-size:0.65rem;color:var(--text-dim);letter-spacing:1px;margin-bottom:6px;text-transform:uppercase;">Apoyar el Proyecto</div>
+              <div style="font-size:0.7rem;color:var(--text-dim);margin-bottom:12px;line-height:1.5;">
+                JARVIS es 100% independiente y open-source. Tu apoyo ayuda a seguir desarrollando.<br>
+                Cualquier aporte es bienvenido ❤️
+              </div>
+              <div style="display:flex;flex-direction:column;gap:8px;align-items:center;">
+                <a href="https://ko-fi.com/jarvisdonaciones" target="_blank" class="donate-btn" style="
+                  display: inline-flex; align-items: center; gap: 8px; width: 100%;
+                  background: linear-gradient(135deg, rgba(0,191,255,0.15), rgba(0,255,136,0.1));
+                  border: 1px solid rgba(0,191,255,0.35); color: #7ecfff;
+                  text-decoration: none; padding: 10px 24px; border-radius: 8px;
+                  font-size: 0.85rem; font-weight: 600; letter-spacing: 0.5px;
+                  transition: all 0.25s; justify-content: center;
+                ">
+                  ☕ Donar con Ko-fi
+                </a>
+                <button id="donate-crypto-btn" style="
+                  display: inline-flex; align-items: center; gap: 8px; width: 100%;
+                  background: rgba(255,255,255,0.03); border: 1px solid rgba(99,179,237,0.15);
+                  color: var(--text-dim); padding: 8px 24px; border-radius: 8px;
+                  font-size: 0.75rem; font-weight: 500; cursor: pointer;
+                  transition: all 0.25s; justify-content: center;
+                ">₿ Donar con Cripto (USDT)</button>
+              </div>
+              <div id="crypto-address" style="display:none;margin-top:8px;padding:10px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(99,179,237,0.1);font-size:0.65rem;">
+                <div style="color:var(--text-dim);margin-bottom:4px;">Red TRC-20 (USDT):</div>
+                <div style="display:flex;gap:6px;align-items:center;">
+                  <code style="flex:1;font-size:0.55rem;color:#7ecfff;word-break:break-all;background:rgba(0,0,0,0.3);padding:6px;border-radius:4px;" id="usdt-address">0x2C9abB9626991bB7C2E41f03D0023a4034058D4B</code>
+                  <button id="copy-address-btn" style="background:none;border:1px solid rgba(99,179,237,0.2);color:#7ecfff;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:0.65rem;">Copiar</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
       </div>
       <div class="config-footer">
         <button class="config-btn" id="config-cancel-btn">Cancelar</button>
