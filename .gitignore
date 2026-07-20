@@ -1,48 +1,6 @@
-# ─── Dependencies ────────────────────────────────────────────────────────────
-node_modules/
-server/node_modules/
-
-# ─── Environment variables (NEVER commit real secrets) ───────────────────────
-.env
-server/.env
-
-# ─── Database & user data ────────────────────────────────────────────────────
 *.db
-*.db-shm
-*.db-wal
-server/data/jarvis.db
-server/feedback_uploads/
-
-# ─── App user data (generated at runtime) ────────────────────────────────────
-jarvis_memory.json
-*.enc
-
-# ─── Build output / releases ─────────────────────────────────────────────────
-dist/
-release/
-*.exe
-*.dmg
-*.AppImage
-
-# ─── OS files ────────────────────────────────────────────────────────────────
-.DS_Store
-Thumbs.db
-
-# ─── Logs & temp ─────────────────────────────────────────────────────────────
-*.log
-*.tmp
-run_output.txt
-ui_logs.txt
-
-# ─── SSL certificates ────────────────────────────────────────────────────────
-server/ssl/
-
-# ─── Python ──────────────────────────────────────────────────────────────────
-__pycache__/
-*.pyc
-
-# ─── IDE ─────────────────────────────────────────────────────────────────────
-.vscode/
-.idea/
-*.swp
-*.swo
+*.db-journal
+.system_generated/tasks/
+.system_generated/terminals/
+.tempmediaStorage/
+browser/
