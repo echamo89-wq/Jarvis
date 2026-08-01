@@ -1,23 +1,33 @@
 import { store } from './state/store.js';
 import { STATE, EVENTS } from './state/constants.js';
 import { bus } from './utils/event-bus.js';
-import { loadConfig, saveConfig, toggleTheme, applyTheme, updateThemeUI, exportConversation as exportChat, applyAnimations, closeModal } from './config/index.js';
+import { loadConfig, saveConfig, toggleTheme, applyTheme, updateThemeUI, exportConversation as exportChat, applyAnimations, closeModal, initOllamaConfigUI } from './config/index.js';
 import { initAudio } from './audio/playback.js';
-import { toggleMicrophone, prewarmAudio } from './audio/recorder.js';
-import { initCanvasVisualizer } from './audio/visualizer.js';
 import { sendTextMessage, showSystemErrorMessage, appendSystemMessage, appendCommandResult, _resetTurnState, showInstantGreeting } from './chat/messages.js';
-import { updateDiagnostics, updateUiState, startProcessMonitor } from './chat/diagnostics.js';
+import { updateDiagnostics, updateUiState } from './chat/diagnostics.js';
 import { connectWebSocket, cleanup as cleanupWs } from './Core/Connection/manager.js';
 import { resetGreetingFlag } from './Core/Connection/handler.js';
 import { initConnectionGuardian, stopConnectionGuardian } from './system/connection-guardian.js';
-import { loadAppPathCache } from './system/apps.js';
+import { loadAppPathCache, rebuildCatalog as rebuildAppsCatalog } from './system/apps.js';
 import { checkAuth, onAuth } from './auth/index.js';
 import { initArtifactsPanel } from './documents/artifacts.js';
 import { initWeatherPanel } from './weather/forecast-panel.js';
 import { initInfoPanel, showInfoPanel } from './ui/info-panel.js';
+import { initPlanPanel } from './ui/plan-panel.js';
 import { JOS } from './engines/index.js';
 import './system/supervisor.js';
 import { initErrorReporter } from './system/error-reporter.js';
+import { initNetworkMonitor } from './engines/ai/network-monitor.js';
+import { kernel } from './kernel/index.js';
+import { toggleDevConsole } from './ui/dev-console.js'; // Dev console — Ctrl+1 para abrir/cerrar
+import { initReminderEngine, _updateRemindersUI } from './system/reminders.js';
+
+try {
+  localStorage.removeItem('jarvis_research_projects');
+  localStorage.removeItem('jarvis_research_unseen');
+  document.getElementById('research-modal')?.remove();
+  document.getElementById('research-overlay')?.remove();
+} catch (_) {}
 
 store.on('change:machine', (next, prev) => {
   updateUiState(next);
@@ -32,10 +42,12 @@ store.on('change:machine', (next, prev) => {
   if (diagState) diagState.innerText = next.toUpperCase();
   const micBtn = document.getElementById('mic-btn');
   if (micBtn) {
-    micBtn.classList.toggle('active', next === STATE.LISTENING);
+    micBtn.classList.toggle('recording', next === STATE.LISTENING);
   }
-  const recInd = document.getElementById('rec-indicator');
-  if (recInd) recInd.style.display = next === STATE.LISTENING ? 'inline-flex' : 'none';
+  const reactorEl = document.querySelector('.reactor-viewport-area');
+  if (reactorEl) {
+    reactorEl.classList.toggle('researching', next === STATE.WORKING);
+  }
 });
 
 store.on('change:toolCount', (count) => {
@@ -65,15 +77,37 @@ bus.on('memory:write-requested', (memory) => {
 
 async function _initApp() {
   const _boot = (msg) => {
-    if (window.electronAPI?.logToTerminal) window.electronAPI.logToTerminal('info', `[BOOT] ${msg}`);
-    console.log(`[MAIN] ${msg}`);
+    const type = msg.startsWith('ERR') || msg.startsWith('Fallo') ? 'error' : 'info';
+    if (window.electronAPI?.logToTerminal) {
+      window.electronAPI.logToTerminal(type, `[BOOT] ${msg}`);
+    } else {
+      console.log(`[MAIN] ${msg}`);
+    }
   };
 
   _boot('DOMContentLoaded — iniciando sistemas');
+  if (window.electronAPI?.reportBootProgress) {
+    window.electronAPI.reportBootProgress(50, 'Inicializando kernel cognitivo...');
+  }
   
-  // Inyección de partículas dinámicas para fondo futurista
-  const pContainer = document.getElementById('main-bg-particles');
-  if (pContainer) {
+  // 1. Boot del Kernel antes de cualquier otra cosa
+  try {
+    await kernel.boot();
+    _boot('Kernel central iniciado');
+    if (window.electronAPI?.reportBootProgress) {
+      window.electronAPI.reportBootProgress(65, 'Kernel central en línea...');
+    }
+  } catch (e) {
+    _boot(`Fallo crítico del Kernel: ${e.message}`);
+    if (window.electronAPI?.reportBootError) {
+      window.electronAPI.reportBootError(`Fallo crítico en el Kernel: ${e.message}`);
+    }
+  }
+  
+  // Partículas dinámicas — se inyectan post-boot para no retrasar el arranque
+  requestIdleCallback(() => {
+    const pContainer = document.getElementById('main-bg-particles');
+    if (!pContainer) return;
     pContainer.innerHTML = '';
     for (let i = 0; i < 35; i++) {
       const p = document.createElement('div');
@@ -84,18 +118,17 @@ async function _initApp() {
       p.style.width = p.style.height = `${1 + Math.random() * 2}px`;
       pContainer.appendChild(p);
     }
-  }
+  });
 
   initErrorReporter();
+  initReminderEngine(); // Motor de recordatorios in-app (sin PowerShell, sin Defender)
   const _CREATOR_KEY = 'jarvis_creator_mode';
 
   // Pre-warm DNS + TLS para Gemini (conexión TCP temprana)
 
-  fetch('config/system_prompt_master.txt').then(r => { if (r.ok) window._cachedMasterPrompt = r.text(); }).catch(() => {});
-  fetch('config/integrity_protocol.txt').then(r => { if (r.ok) window._cachedIntegrity = r.text(); }).catch(() => {});
-  import('./audio/recorder.js').then(m => m.prewarmAudio()).catch(() => {});
-  initCanvasVisualizer();
-  _boot('CanvasVisualizer OK');
+  fetch('config/system_prompt_master.txt').then(r => { if (r.ok) r.text().then(t => { window._cachedMasterPrompt = t; }); }).catch(() => {});
+  fetch('config/integrity_protocol.txt').then(r => { if (r.ok) r.text().then(t => { window._cachedIntegrity = t; }); }).catch(() => {});
+  _boot('Sistemas preparados');
 
   if (window.electronAPI?.onTtsState) {
     window.electronAPI.onTtsState(({ speaking }) => {
@@ -105,36 +138,30 @@ async function _initApp() {
   try {
     initAudio();
     _boot('Audio OK');
+    if (window.electronAPI?.reportBootProgress) {
+      window.electronAPI.reportBootProgress(80, 'Dispositivos de audio listos...');
+    }
   } catch (e) {
     console.warn(`[MAIN] Audio pre-init: ${e.message}`);
     if (window.electronAPI?.logToTerminal) window.electronAPI.logToTerminal('warn', `[BOOT] Audio pre-init: ${e.message}`);
   }
+  // Setear proveedor activo en store ANTES de cualquier otra cosa — esto evita que WS se conecte
+  store.set('_activeProvider', 'gemini');
   await loadConfig();
   _boot('Config cargada');
-
-  async function _waitBackendReady(timeoutMs = 15000) {
-    const start = Date.now();
-    while (Date.now() - start < timeoutMs) {
-      try {
-        const resp = await fetch('http://localhost:3001/api/health', { cache: 'no-store' });
-        if (resp.ok) return true;
-      } catch (e) {
-        // ignore until service is ready
-      }
-      await new Promise(res => setTimeout(res, 500));
-    }
-    console.warn('[MAIN] Backend no listo tras', timeoutMs, 'ms');
-    return false;
+  if (window.electronAPI?.reportBootProgress) {
+    window.electronAPI.reportBootProgress(90, 'Preferencias y configuración cargadas...');
   }
-
-  // El backend se verifica en segundo plano de manera asíncrona para no retrasar el inicio de la app (arranque instantáneo en < 1s)
-  _waitBackendReady(15000).then(ready => {
-    if (!ready) {
-      _boot('Backend no disponible, la autenticación puede tardar en guardarse');
-    } else {
-      _boot('Backend listo');
+  try {
+    const homeDir = await window.electronAPI?.getHomeDir?.();
+    if (homeDir) {
+      store.set('homeDir', homeDir);
+      _boot(`Carpeta personal detectada: ${homeDir}`);
     }
-  });
+  } catch (err) {
+    console.warn('[BOOT] Error al obtener carpeta personal:', err.message);
+  }
+  import('./memory/memory-manager.js').then(m => { m.initMemorySystem(); _boot('Memoria vectorial lista'); }).catch(e => console.warn('[MEMORY] init:', e.message));
 
   let _appStarted = false;
   const _startApp = async () => {
@@ -175,35 +202,50 @@ async function _initApp() {
     // Estas no necesitan JOS.boot ni AppScan — se ejecutan inmediato
     showInstantGreeting();
     initConnectionGuardian();
+    initNetworkMonitor();
     _initWatchdogs();
-    startProcessMonitor();
-    _boot('Watchdogs y Monitor activos');
-    import('./integrations/index.js').then(m => { m.initIntegrations(); import('./integrations/ui.js').then(ui => ui.initIntegrationsUI()); });
+    _boot('Watchdogs, Guardian y NetworkMonitor activos');
+    import('./engines/integration/index.js').then(m => { m.initIntegrations(); import('./engines/integration/ui.js').then(ui => ui.initIntegrationsUI()); });
     _boot('Integraciones inicializadas');
+    import('./updater/update-dialog.js').then(m => { m.initUpdaterUI(); }).catch(e => console.warn('[UPDATER] init:', e.message));
     initArtifactsPanel();
     _boot('Artifacts panel OK');
     initWeatherPanel();
     _boot('Weather panel OK');
     initInfoPanel();
     _boot('Info panel OK');
+    initPlanPanel();
+    _boot('Plan panel OK');
 
     store.set('startTime', 0);
     store.set('isReconnectingIntentional', false);
-    store.set('lastMicEnergy', 0);
   };
+
+  if (window.electronAPI?.reportBootProgress) {
+    window.electronAPI.reportBootProgress(95, 'Verificando sesión...');
+  }
 
   onAuth(({ authed, user }) => {
     if (!authed) return;
     if (_appStarted) return;
     _boot(`Autenticado: ${user?.username || 'usuario'}`);
+    if (window.electronAPI?.reportBootProgress) {
+      window.electronAPI.reportBootProgress(100, 'Inicialización completada');
+    }
     _startApp();
   });
 
   const authOk = await checkAuth();
   if (authOk) {
+    if (window.electronAPI?.reportBootProgress) {
+      window.electronAPI.reportBootProgress(100, 'Inicialización completada');
+    }
     _startApp();
   } else {
     _boot('Esperando inicio de sesión...');
+    if (window.electronAPI?.reportBootProgress) {
+      window.electronAPI.reportBootProgress(100, 'Sistemas listos para configuración');
+    }
   }
 
   // ─── UI event handlers — siempre se registran aunque no haya auth ──
@@ -225,6 +267,21 @@ async function _initApp() {
     }
   });
 
+  // ─── Plan panel toggle ───────────────────────────────
+  document.getElementById('plan-btn')?.addEventListener('click', () => {
+    const panel = document.getElementById('plan-panel');
+    if (!panel) return;
+    panel.classList.toggle('collapsed');
+    if (!panel.classList.contains('collapsed')) {
+      import('./ui/plan-panel.js').then(m => m.refreshPlanPanel());
+    }
+  });
+
+  // ─── Investigaciones ──────────────────────────────────
+  document.getElementById('docs-btn')?.addEventListener('click', () => {
+    import('./research/research-modal.js').then(m => m.openResearchModal());
+  });
+
   // ─── New chat ────────────────────────────────────────
   document.getElementById('new-chat-btn')?.addEventListener('click', () => {
     const history = store.get('conversationHistory');
@@ -244,16 +301,19 @@ async function _initApp() {
     }
   });
 
-  // ─── Mic button ──────────────────────────────────────
-  document.getElementById('mic-btn')?.addEventListener('click', () => {
-    toggleMicrophone(false, true);
-  });
-
   // ─── Chat text input & send ──────────────────────────
   const chatTextarea = document.getElementById('chat-text-input');
   const chatSendBtn  = document.getElementById('chat-send-btn');
 
-  function _sendChatText() {
+  async function _sendChatText() {
+    if (_pendingImages?.length > 0) {
+      const text = chatTextarea?.value?.trim() || '';
+      chatTextarea.value = '';
+      chatTextarea.style.height = 'auto';
+      chatSendBtn?.classList.remove('has-text');
+      await _sendChatWithOptionalImage(text);
+      return;
+    }
     const text = chatTextarea?.value?.trim();
     if (!text) return;
     chatSendBtn?.classList.add('sending');
@@ -289,12 +349,87 @@ async function _initApp() {
     }
   });
 
+  // ─── Mic button (voice input) ─────────────────────────
+  const micBtn = document.getElementById('mic-btn');
+  micBtn?.addEventListener('click', async () => {
+    const { startRecording, stopRecording, isRecording } = await import('./audio/recorder.js');
+    _toggleMic(isRecording());
+  });
+
+  function _toggleMic(wasRecording) {
+    const micBtnEl = document.getElementById('mic-btn');
+    if (wasRecording) {
+      import('./audio/recorder.js').then(m => m.stopRecording());
+      micBtnEl?.classList.remove('recording');
+      store.setState(STATE.IDLE);
+      window.electronAPI.setMicState(false);
+    } else {
+      if (store.get('_isProcessingImage')) {
+        import('./chat/messages.js').then(m => m.showSystemErrorMessage('Esperá a que termine de analizar la imagen antes de hablar.'));
+        return;
+      }
+      import('./audio/recorder.js').then(m => m.startRecording()).then(ok => {
+        if (ok) {
+          micBtnEl?.classList.add('recording');
+          store.setState(STATE.LISTENING);
+          window.electronAPI.setMicState(true);
+        }
+      });
+    }
+  }
+
+  // Tray mic toggle
+  window.electronAPI.onTrayMicToggle((active) => {
+    const btn = document.getElementById('mic-btn');
+    if (active) {
+      if (store.get('_isProcessingImage')) return;
+      import('./audio/recorder.js').then(m => m.startRecording()).then(ok => {
+        if (ok) { btn?.classList.add('recording'); store.setState(STATE.LISTENING); }
+      });
+    } else {
+      import('./audio/recorder.js').then(m => m.stopRecording());
+      btn?.classList.remove('recording');
+      store.setState(STATE.IDLE);
+    }
+  });
+
+  // ─── YouTube Download Progress ────────────────────────
+  window.electronAPI.onYoutubeProgress((data) => {
+    const area = document.getElementById('yt-prog-area');
+    const fill = document.getElementById('yt-prog-fill');
+    const pct = document.getElementById('yt-prog-pct');
+    const speed = document.getElementById('yt-prog-speed');
+    const eta = document.getElementById('yt-prog-eta');
+    const status = document.getElementById('yt-prog-status');
+    if (!area || !fill || !pct) return;
+
+    if (data.status === 'complete') {
+      fill.style.width = '100%';
+      pct.textContent = '100%';
+      if (status) status.textContent = 'Descarga completada';
+      setTimeout(() => { area.style.display = 'none'; }, 3000);
+      return;
+    }
+    if (data.status === 'error') {
+      if (status) status.textContent = 'Error: ' + (data.message || 'desconocido');
+      return;
+    }
+
+    area.style.display = 'block';
+    fill.style.width = (data.percent || 0) + '%';
+    pct.textContent = (data.percent || 0) + '%';
+    if (speed && data.speed) speed.textContent = data.speed;
+    if (eta && data.eta) eta.textContent = 'ETA ' + data.eta;
+    if (status && data.message) status.textContent = data.message;
+  });
+
+  document.getElementById('yt-prog-close')?.addEventListener('click', () => {
+    const a = document.getElementById('yt-prog-area');
+    if (a) a.style.display = 'none';
+  });
+
   // ─── Global keyboard shortcuts ────────────────────────
   document.addEventListener('keydown', (e) => {
-    if (e.ctrlKey && e.key === 'm') {
-      e.preventDefault();
-      import('./audio/recorder.js').then(m => m.toggleMicrophone()).catch(() => {});
-    }
     if (e.ctrlKey && e.key === 'n') {
       e.preventDefault();
       document.getElementById('new-chat-btn')?.click();
@@ -314,7 +449,6 @@ async function _initApp() {
   const attachBtn = document.getElementById('attach-btn');
   const focusFileInput = document.getElementById('focus-file-input');
 
-  attachBtn?.addEventListener('click', () => fileInput?.click());
   fileInput?.addEventListener('change', (e) => {
     _handleFiles(e.target.files);
     e.target.value = '';
@@ -327,34 +461,35 @@ async function _initApp() {
   async function _handleFiles(files) {
     if (!files || files.length === 0) return;
     const { sendTextMessage, appendUserMessage, showSystemErrorMessage: showErr } = await import('./chat/messages.js');
+    // Primero recolectar imágenes (hasta 2), enviar juntas
+    const imageFiles = [];
+    for (const file of files) {
+      if (file.type.startsWith('image/')) imageFiles.push(file);
+    }
+    if (imageFiles.length > 0) {
+      const toProcess = imageFiles.slice(0, 2);
+      if (imageFiles.length > 2) showErr('Máximo 2 imágenes por envío.');
+      const images = await Promise.all(toProcess.map(async f => ({
+        base64: await _fileToBase64(f),
+        mimeType: f.type || 'image/jpeg',
+        name: f.name
+      })));
+      _pendingImages = images;
+      _renderImagePreview();
+      chatTextarea?.focus();
+      return;
+    }
+
     for (const file of files) {
       try {
         const MAX_CHARS = 3000;
         const ext = file.name.split('.').pop().toLowerCase();
-        const isImage = file.type.startsWith('image/');
         const isAudio = file.type.startsWith('audio/');
         const isText = file.type.startsWith('text/') || ['txt','md','json','csv','log','js','ts','py','html','css','xml','yaml','yml','ini','cfg','env','jsx','tsx','vue','sql','sh','bat','ps1','env'].includes(ext);
 
         let msgLabel = '';
         let wsContent = '';
-
-        if (isImage) {
-          const buffer = await file.arrayBuffer();
-          const b64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
-          msgLabel = `[Imagen: ${file.name}]`;
-          appendUserMessage(msgLabel, msgLabel);
-          const ws = window.ws;
-          if (ws?.readyState === 1) {
-            const turns = (store.get('conversationHistory') || []).slice(-40).map(e => ({ role: e.role === 'user' ? 'user' : 'model', parts: [{ text: e.content }] }));
-          turns.push({ role: 'user', parts: [
-            { text: `Analiza esta imagen adjuntada: "${file.name}". Describe su contenido y responde a lo que sea relevante.` },
-            { inlineData: { mimeType: file.type, data: b64 } }
-          ]});
-          ws.send(JSON.stringify({
-              clientContent: { turns, turnComplete: true }
-            }));
-          }
-        } else if (isAudio) {
+        if (isAudio) {
           msgLabel = `[Audio: ${file.name}]`;
           wsContent = `El usuario adjuntó un archivo de audio: "${file.name}" (${file.type || 'audio'}, ${(file.size / 1024).toFixed(1)} KB). Describe brevemente su contenido.`;
           appendUserMessage(msgLabel, msgLabel);
@@ -424,15 +559,366 @@ async function _initApp() {
   }
   _addDropHandlers(dropZone);
 
-  store.set('alwaysListen', false);
+  // ─── Imágenes (hasta 2 por envío) ─────────────────────
+  let _pendingImages = []; // [{ base64, mimeType, name }]
 
-  // ─── Right panel (diagnóstico) toggle ────────────────
+  function _renderImagePreview() {
+    const preview = document.getElementById('chat-image-preview');
+    const thumbs = document.getElementById('chat-img-thumbs');
+    if (!preview || !thumbs) return;
+    if (_pendingImages.length === 0) { preview.style.display = 'none'; return; }
+    thumbs.innerHTML = '';
+    const maxThumbs = Math.min(_pendingImages.length, 2);
+    for (let i = 0; i < maxThumbs; i++) {
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'position:relative;flex-shrink:0;';
+      const img = document.createElement('img');
+      img.src = `data:${_pendingImages[i].mimeType};base64,${_pendingImages[i].base64}`;
+      img.alt = _pendingImages[i].name;
+      img.style.cssText = 'height:44px;width:44px;border-radius:8px;object-fit:cover;border:1px solid rgba(255,255,255,0.1);';
+      wrap.appendChild(img);
+      thumbs.appendChild(wrap);
+    }
+    preview.style.display = 'flex';
+  }
+
+  function _clearImagePreview() {
+    _pendingImages = [];
+    const preview = document.getElementById('chat-image-preview');
+    if (preview) preview.style.display = 'none';
+    const imgFileInput = document.getElementById('chat-image-file-input');
+    if (imgFileInput) imgFileInput.value = '';
+  }
+
+  document.getElementById('chat-img-remove')?.addEventListener('click', _clearImagePreview);
+
+  attachBtn?.addEventListener('click', () => {
+    document.getElementById('chat-image-file-input')?.click();
+  });
+
+  function _fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result;
+        const b64 = result.includes(',') ? result.split(',')[1] : result;
+        resolve(b64);
+      };
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // Comprimir imagen a JPEG 50% con resize a máximo 1024px
+  function _compressImage(b64, mimeType) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 1024;
+        let w = img.naturalWidth, h = img.naturalHeight;
+        if (w > MAX || h > MAX) {
+          const ratio = Math.min(MAX / w, MAX / h);
+          w = Math.round(w * ratio);
+          h = Math.round(h * ratio);
+        }
+        const c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        const ctx = c.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(c.toDataURL('image/jpeg', 0.5).split(',')[1]);
+      };
+      img.onerror = () => resolve(b64);
+      img.src = `data:${mimeType};base64,${b64}`;
+    });
+  }
+
+  // Selección de imagen(es) → preview, espera texto + Enter (máx 2)
+  document.getElementById('chat-image-file-input')?.addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files || []).slice(0, 2);
+    if (files.length === 0) return;
+    try {
+      const images = await Promise.all(files.map(async f => ({
+        base64: await _fileToBase64(f),
+        mimeType: f.type || 'image/jpeg',
+        name: f.name
+      })));
+      _pendingImages = images;
+      _renderImagePreview();
+    } catch (err) {
+      console.error('[IMG] Error reading file:', err);
+    }
+    e.target.value = '';
+  });
+
+  // Ctrl+V en portapapeles → agrega a preview (máx 2)
+  document.getElementById('chat-text-input')?.addEventListener('paste', async (e) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of items) {
+      if (item.type.startsWith('image/') && _pendingImages.length < 2) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (!file) return;
+        try {
+          const b64 = await _fileToBase64(file);
+          const mt = item.type || 'image/png';
+          _pendingImages.push({
+            base64: b64,
+            mimeType: mt,
+            name: `imagen_pegada.${mt.split('/')[1] || 'png'}`
+          });
+          _renderImagePreview();
+        } catch (err) {
+          console.error('[IMG] Error reading clipboard image:', err);
+        }
+        return;
+      }
+    }
+  });
+
+  // Enviar imágenes pendientes a Gemini
+  async function _sendChatWithOptionalImage(text) {
+    if (_pendingImages.length === 0) return;
+    const { appendUserMessage, handleJarvisTranscriptInstant } = await import('./chat/messages.js');
+    const names = _pendingImages.map(i => i.name).join(', ');
+    const label = text ? `${text} [📷 ${names}]` : `[📷 ${names}]`;
+    const userPrompt = text || `Analiza ${_pendingImages.length > 1 ? 'estas ' + _pendingImages.length + ' imágenes' : 'esta imagen'}: "${names}"`;
+    appendUserMessage(label, label);
+
+    // Bloquear micrófono mientras se procesa la imagen
+    store.set('_isProcessingImage', true);
+    // Activar indicador de análisis en el logo + indicator
+    const indicator = document.getElementById('msg-indicator');
+    if (indicator) {
+      indicator.className = 'msg-indicator active processing';
+      indicator.innerHTML = '<span>Analizando imagen…</span>';
+    }
+    store.set('_turnState', 'thinking');
+    store.set('_thinkingPhaseStartTime', Date.now());
+    store.set('waitingForResponse', true);
+    store.setState(STATE.SPEAKING);
+
+    // Comprimir imágenes a JPEG 50% (máx 1024px) para ahorrar cuota
+    const compressedParts = [{ text: userPrompt }];
+    for (const img of _pendingImages) {
+      const compressed = await _compressImage(img.base64, img.mimeType || 'image/jpeg');
+      compressedParts.push({ inlineData: { mimeType: 'image/jpeg', data: compressed } });
+    }
+    const IMG_INSTRUCTION = `Sos JARVIS, el asistente personal. Acabás de recibir una imagen. Respondé en español, de forma natural y CONCISA (máximo 150 palabras).
+1) Contá en 1-3 frases qué muestra la imagen (lo esencial: qué es, qué se ve).
+2) Respondé directamente a la petición del usuario sobre la imagen (usarla como fondo de pantalla, compartirla, analizarla, describirla, etc.). Si pidió una acción, decí qué harías o qué necesitás para hacerla.
+NO hagas análisis técnico extenso, NO listes detalles innecesarios, NO repitas la descripción. Directo al punto, como una persona.`;
+    const wallpaperIntent = /(fondo de pantalla|fondo de escritorio|wallpaper|como fondo)/i.test(text || '');
+    const imgInstruction = wallpaperIntent
+      ? IMG_INSTRUCTION + `\n3) El usuario pidió usar la imagen como fondo de pantalla: se aplicará automáticamente al escritorio de Windows. Confirmalo con naturalidad al final, sin pedir permisos ni más datos.`
+      : IMG_INSTRUCTION;
+    try {
+      if (window.electronAPI?.geminiTextChat) {
+        const history = store.get('conversationHistory') || [];
+        const apiMsgs = history.slice(-40).map(e => ({ role: e.role === 'user' ? 'user' : 'model', parts: [{ text: e.content }] }));
+        apiMsgs.push({ role: 'user', parts: compressedParts });
+        // Guardar el mensaje del usuario en el historial para continuidad
+        history.push({ role: 'user', content: label });
+        store.set('conversationHistory', [...history]);
+        const result = await window.electronAPI.geminiTextChat({ messages: apiMsgs, systemInstruction: imgInstruction });
+        if (result.success) {
+          const h = store.get('conversationHistory');
+          h.push({ role: 'model', content: result.response });
+          store.set('conversationHistory', [...h]);
+          // Restaurar indicator normal de speaking
+          if (indicator) {
+            indicator.className = 'msg-indicator active speaking';
+            indicator.innerHTML = '';
+            for (let i = 0; i < 3; i++) {
+              const bar = document.createElement('span');
+              bar.style.animationDelay = (i * 0.12) + 's';
+              indicator.appendChild(bar);
+            }
+          }
+          // Aplicar la imagen como fondo de pantalla si el usuario lo pidió
+          let finalResponse = result.response;
+          if (wallpaperIntent && _pendingImages.length > 0) {
+            try {
+              const img = _pendingImages[0];
+              const ext = (img.mimeType || 'image/png').includes('jpeg') ? 'jpg' : 'png';
+              const home = await window.electronAPI?.getHomeDir?.() || 'C:\\Users\\Admin';
+              const outPath = `${home}\\Pictures\\JARVIS_Wallpaper_${Date.now()}.${ext}`;
+              const saved = await window.electronAPI.saveImageFile({ base64: img.base64, filePath: outPath });
+              if (saved?.success) {
+                const wp = await window.electronAPI.setWallpaper('url', outPath);
+                if (wp?.success) {
+                  finalResponse += `\n\n🖥️ Listo, ya quedó como fondo de pantalla.`;
+                } else {
+                  finalResponse += `\n\n⚠️ No pude aplicar el fondo: ${(wp && wp.output) || 'error desconocido'}`;
+                }
+              } else {
+                finalResponse += `\n\n⚠️ No pude guardar la imagen: ${(saved && saved.error) || 'error desconocido'}`;
+              }
+            } catch (e) {
+              finalResponse += `\n\n⚠️ Error al aplicar el fondo: ${e.message}`;
+            }
+          }
+          handleJarvisTranscriptInstant(finalResponse);
+          // Guardar en memoria vectorial para que Jarvis lo recuerde después
+          import('./memory/memory-manager.js').then(m => m.storeTurn(label, finalResponse)).catch(() => {});
+          // Auto-guardar como fact importante (horarios, listas, info personal)
+          import('./memory/facts.js').then(f => {
+            f.saveFact('schedule', `Análisis de imagen del usuario: ${finalResponse.substring(0, 1000)}`, 'high');
+          }).catch(() => {});
+          // Hablar la respuesta con la voz de Gemini (mismo pipeline que el WS)
+          import('./audio/playback.js').then(m => m.speakWithGeminiVoice(finalResponse));
+        } else {
+          const { showSystemErrorMessage } = await import('./chat/messages.js');
+          showSystemErrorMessage(`Error al analizar imagen: ${result.error}`);
+        }
+      } else {
+        const { showSystemErrorMessage } = await import('./chat/messages.js');
+        showSystemErrorMessage('geminiTextChat no disponible para analizar imagen');
+      }
+    } catch (err) {
+      const { showSystemErrorMessage } = await import('./chat/messages.js');
+      showSystemErrorMessage(`Error al analizar imagen: ${err.message}`);
+    }
+    store.set('_isProcessingImage', false);
+    store.set('waitingForResponse', false);
+    store.setState(STATE.IDLE);
+    _clearImagePreview();
+  }
+
+  // ─── Toggle campana de recordatorios ──────────────────
+  document.getElementById('reminders-trigger')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const dropdown = document.getElementById('reminders-dropdown');
+    if (!dropdown) return;
+    const isOpen = dropdown.style.display !== 'none';
+    dropdown.style.display = isOpen ? 'none' : 'block';
+    if (!isOpen) {
+      import('./system/reminders.js').then(m => {
+        m._updateRemindersUI();
+      });
+    }
+  });
+  document.addEventListener('click', (e) => {
+    const dropdown = document.getElementById('reminders-dropdown');
+    const panel = document.getElementById('reminders-panel');
+    if (dropdown && panel && !panel.contains(e.target)) {
+      dropdown.style.display = 'none';
+    }
+  });
+
+
   document.getElementById('console-toggle-btn')?.addEventListener('click', () => {
     const panel = document.getElementById('right-panel');
     if (!panel) return;
     panel.classList.toggle('collapsed');
     const btn = document.getElementById('console-toggle-btn');
     if (btn) btn.textContent = panel.classList.contains('collapsed') ? '◀' : '▶';
+  });
+
+  // ─── Prompts (modal que se actualiza, botón en la esquina) ───
+  let _lastPrompt = null;
+  try {
+    const stored = localStorage.getItem('jarvis_last_prompt');
+    if (stored) _lastPrompt = JSON.parse(stored);
+  } catch {}
+
+  function _renderPromptModal(entry) {
+    if (!entry) return;
+    document.getElementById('pm-title').textContent = entry.title || 'Prompt';
+    document.getElementById('pm-text').textContent = entry.prompt;
+    const linksWrap = document.getElementById('pm-links');
+    linksWrap.innerHTML = '';
+    if (entry.links && entry.links.length > 0) {
+      for (const link of entry.links) {
+        const a = document.createElement('a');
+        a.href = link;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.textContent = link;
+        linksWrap.appendChild(a);
+      }
+      linksWrap.style.display = 'flex';
+    } else {
+      linksWrap.style.display = 'none';
+    }
+  }
+
+  function _openPromptModal() {
+    if (!_lastPrompt) return;
+    _renderPromptModal(_lastPrompt);
+    document.getElementById('prompt-modal').style.display = 'flex';
+  }
+
+  function _closePromptModal() {
+    document.getElementById('prompt-modal').style.display = 'none';
+  }
+
+  document.getElementById('prompt-reopen-btn')?.addEventListener('click', _openPromptModal);
+  document.getElementById('pm-close-btn')?.addEventListener('click', _closePromptModal);
+  document.getElementById('prompt-modal')?.addEventListener('click', (e) => {
+    if (e.target.id === 'prompt-modal') _closePromptModal();
+  });
+  document.getElementById('pm-copy-btn')?.addEventListener('click', () => {
+    if (!_lastPrompt) return;
+    navigator.clipboard.writeText(_lastPrompt.prompt).then(() => {
+      const btn = document.getElementById('pm-copy-btn');
+      btn.classList.add('copied');
+      btn.querySelector('span').textContent = '✓ Copiado';
+      setTimeout(() => {
+        btn.classList.remove('copied');
+        btn.querySelector('span').textContent = 'Copiar prompt';
+      }, 2000);
+    }).catch(() => {});
+  });
+
+  bus.on('prompt:new', (entry) => {
+    _lastPrompt = entry;
+    try { localStorage.setItem('jarvis_last_prompt', JSON.stringify(entry)); } catch {}
+    document.getElementById('prompt-reopen-btn').style.display = 'flex';
+    _openPromptModal();
+  });
+  if (_lastPrompt) document.getElementById('prompt-reopen-btn').style.display = 'flex';
+
+  // ─── Links de búsqueda web (integrados inline en la respuesta de JARVIS) ───
+  function _hideInlineLinks() {
+    const el = document.getElementById('msg-web-links');
+    if (el) { el.style.display = 'none'; el.innerHTML = ''; }
+  }
+  bus.on('ui:links-hide', _hideInlineLinks);
+  bus.on('web:links', (links) => {
+    const el = document.getElementById('msg-web-links');
+    if (!el || !Array.isArray(links) || links.length === 0) return;
+    el.innerHTML = '';
+    for (const link of links.slice(0, 5)) {
+      const a = document.createElement('a');
+      a.href = link;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.className = 'msg-web-link-chip';
+      // favicon de Google
+      const favicon = document.createElement('img');
+      try {
+        const host = new URL(link).hostname;
+        favicon.src = `https://www.google.com/s2/favicons?domain=${host}&sz=16`;
+      } catch { favicon.src = ''; }
+      favicon.width = 12;
+      favicon.height = 12;
+      favicon.style.borderRadius = '2px';
+      favicon.onerror = () => { favicon.style.display = 'none'; };
+      const label = document.createElement('span');
+      try {
+        label.textContent = new URL(link).hostname.replace(/^www\./, '');
+      } catch { label.textContent = link; }
+      a.appendChild(favicon);
+      a.appendChild(label);
+      el.appendChild(a);
+    }
+    el.style.display = 'flex';
+  });
+
+  // ─── Dev console toggle ──────────────────────────────
+  document.getElementById('dev-console-btn')?.addEventListener('click', () => {
+    toggleDevConsole();
   });
 
 
@@ -484,16 +970,22 @@ async function _initApp() {
     document.getElementById('voice-select').value = get('jarvis_voice', 'Fenrir');
     document.getElementById('length-select').value = get('jarvis_length', 'normal');
     document.getElementById('font-size-slider').value = get('jarvis_fontsize', '2');
-    document.getElementById('sfx-toggle').checked = localStorage.getItem('jarvis_sfx') !== 'false';
-
-    document.getElementById('anim-toggle').checked = localStorage.getItem('jarvis_anims') !== 'false';
     document.getElementById('city-input').value = get('jarvis_city', '');
     document.getElementById('rules-textarea').value = get('jarvis_rules', '');
     document.getElementById('context-textarea').value = get('jarvis_context', '');
     const vadSlider = document.getElementById('vad-slider');
     if (vadSlider) vadSlider.value = localStorage.getItem('jarvis_vad_threshold') || '300';
+    const interruptToggle = document.getElementById('interrupt-toggle');
+    if (interruptToggle) interruptToggle.checked = localStorage.getItem('jarvis_interrupt_mode') !== 'false';
+    const gfxSelect = document.getElementById('graphics-select');
+    if (gfxSelect) gfxSelect.value = localStorage.getItem('jarvis_graphics') || 'high';
+    const googleApiKeyInput = document.getElementById('config-google-api-key');
+    if (googleApiKeyInput) googleApiKeyInput.value = localStorage.getItem('jarvis_google_api_key') || '';
+    const googleCxInput = document.getElementById('config-google-cx');
+    if (googleCxInput) googleCxInput.value = localStorage.getItem('jarvis_google_cx') || '';
     document.getElementById('clear-confirm-span').style.display = 'none';
     document.getElementById('clear-btn').style.display = 'inline-block';
+    initOllamaConfigUI();
   });
   document.getElementById('user-badge')?.addEventListener('click', () => {
     document.getElementById('config-trigger')?.click();
@@ -537,10 +1029,34 @@ async function _initApp() {
     }
   });
 
-  // ─── Global hotkey: toggle mic ───────────────────────
-  window.electronAPI?.onGlobalToggleMic(() => {
-    const micBtn = document.getElementById('mic-btn');
-    if (micBtn) micBtn.click();
+  // ─── Sync apps ──────────────────────────────────────
+  document.getElementById('sync-apps-btn')?.addEventListener('click', async () => {
+    const btn = document.getElementById('sync-apps-btn');
+    const resultEl = document.getElementById('sync-apps-result');
+    if (!btn || !resultEl) return;
+    btn.disabled = true;
+    btn.textContent = '🔄 Sincronizando...';
+    resultEl.style.display = 'inline';
+    resultEl.textContent = 'Escaneando aplicaciones instaladas...';
+    try {
+      const res = await rebuildAppsCatalog();
+      const total = res && typeof res === 'object' ? res.total : res;
+      const added = res && typeof res === 'object' ? res.added : 0;
+      const purged = res && typeof res === 'object' ? res.purged : 0;
+      let msg;
+      if (added > 0 && purged > 0) msg = `✓ ${added} apps nuevas añadidas, ${purged} obsoletas limpiadas (${total} en total)`;
+      else if (added > 0) msg = `✓ ${added} apps nuevas añadidas (${total} en total)`;
+      else if (purged > 0) msg = `✓ ${purged} apps obsoletas limpiadas (${total} en total)`;
+      else msg = `✓ Catálogo sincronizado (${total} apps en total)`;
+      resultEl.textContent = msg;
+      resultEl.style.color = '#00ff88';
+    } catch (e) {
+      resultEl.textContent = `✗ Error: ${e.message}`;
+      resultEl.style.color = '#ff4444';
+    }
+    btn.disabled = false;
+    btn.textContent = '🔄 Sincronizar aplicaciones';
+    setTimeout(() => { resultEl.style.display = 'none'; }, 5000);
   });
 
   // ─── Clear chat ──────────────────────────────────────
@@ -562,16 +1078,6 @@ async function _initApp() {
     document.getElementById('clear-btn').style.display = 'inline-block';
     closeModal(document.getElementById('config-modal'));
     showSystemErrorMessage('Conversacion reiniciada. Sistemas en linea.');
-  });
-
-  // ─── Thinking panel toggle ───────────────────────────
-  document.getElementById('thinking-toggle')?.addEventListener('click', () => {
-    const body = document.getElementById('thinking-body');
-    const icon = document.querySelector('#thinking-toggle .toggle-icon');
-    if (body && icon) {
-      body.classList.toggle('collapsed');
-      icon.innerText = body.classList.contains('collapsed') ? 'A' : 'V';
-    }
   });
 
   // ─── System status ───────────────────────────────────
@@ -646,6 +1152,31 @@ async function _initApp() {
     mm.syncSidebarStatus();
     setInterval(() => mm.syncSidebarStatus(), 5000);
   });
+
+  // ─── Sidebar Drawer (Menú táctico columna lateral) ───
+  const sidebar = document.getElementById('sidebar-drawer');
+  const toggleBtn = document.getElementById('sidebar-toggle-btn');
+  const closeBtn = document.getElementById('drawer-close-btn');
+  
+  if (sidebar && toggleBtn) {
+    toggleBtn.addEventListener('click', () => {
+      sidebar.classList.toggle('open');
+    });
+  }
+  if (sidebar && closeBtn) {
+    closeBtn.addEventListener('click', () => {
+      sidebar.classList.remove('open');
+    });
+  }
+  // Cerrar al hacer click afuera de la columna
+  document.addEventListener('click', (e) => {
+    if (sidebar && sidebar.classList.contains('open')) {
+      if (!sidebar.contains(e.target) && e.target !== toggleBtn) {
+        sidebar.classList.remove('open');
+      }
+    }
+  });
+
 }
 
 // ─── Global error handlers (previene pantalla blanca) ─────────────────────
@@ -687,8 +1218,5 @@ window.addEventListener('beforeunload', () => {
   cleanupWs();
   const ac = document.querySelector('audio')?.context;
   if (ac && ac.state !== 'closed') ac.close();
-  import('./audio/recorder.js').then(m => {
-    const rc = m.getRecordingContext?.();
-    if (rc && rc.state !== 'closed') rc.close();
-  }).catch(() => {});
+  import('./audio/recorder.js').then(m => m.cleanupRecorder()).catch(() => {});
 });

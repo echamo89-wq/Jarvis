@@ -1,26 +1,68 @@
-import { getFunctionDeclarations as getIntegrationDeclarations } from '../integrations/index.js';
+import { getFunctionDeclarations as getIntegrationDeclarations } from '../engines/integration/index.js';
+import { getFunctionDeclarations as getPlannerDeclarations } from '../engines/ai/planner/index.js';
 
 export function getFunctionDeclarations() {
   return [
     {
       name: 'launch_app',
-      description: `Opens any desktop application, program, or website. PRIORITY TOOL — always try this FIRST for any app-opening request.
+      description: `Opens any desktop application, program, or website. ONLY use when the user explicitly says to open an app (e.g. "abre Telegram", "abrí Spotify"). Do NOT use for casual conversation or greetings.
+ALSO supports categories: "abrí un navegador", "abrí un juego", "abrí el editor de código", "abrí la música", "abrí el chat", "abrí diseño".
 SUPPORTED (Spanish & English names work):
-• Browsers: chrome/navegador, firefox, edge, brave
-• Communication: discord, whatsapp/wsp, telegram/tg, slack, teams, zoom
-• Music: spotify/música, vlc/reproductor
-• Productivity: word, excel/planilla, powerpoint/ppt/presentaciones, outlook/correo, onenote, notepad/notas, notepad++
-• Code: vscode/code/vs code, cursor, windsurf, postman, docker
-• System: terminal/consola, cmd, powershell/shell, calculadora/calculator, paint, archivos/explorador
+• Browsers: chrome/navegador/internet, firefox, edge, brave, opera
+• Communication: discord/chat, whatsapp/wsp/wa, telegram/tg, signal, slack, teams, zoom
+• Music/Media: spotify/música/vlc, obs/streaming, audacity, plex, kodi
+• Productivity: notion, obsidian, trello, todoist/tareas, evernote
+• Office: word/excel/powerpoint/ppt, outlook/correo, onenote, access
+• Development: code/vscode/vs, cursor, windsurf, sublime, notepad++, postman, docker
+• System: terminal/consola, cmd, powershell/shell, calculadora, paint, archivos/explorador, reloj
 • Settings: settings/configuración/ajustes, administrador de tareas/task manager
-• Social: instagram/ig, twitter/x, facebook/fb, tiktok, linkedin, github
-• Google: youtube/yt, gmail/correo, drive, maps/mapas, chatgpt/gpt
-• Streaming: netflix, obs/streaming/obs studio
-• Gaming: steam, epic games, battle.net
-• Design: photoshop/ps, illustrator/ai, figma/diseño
-• Store: tienda windows/store, fotos/photos, cámara/camera, reloj/clock/alarma
-• Other: snipping tool/recortes/captura de pantalla, notion, obsidian, unity, winrar, 7zip`,
-      parameters: { type: 'object', properties: { appName: { type: 'string', description: 'App name in Spanish or English. Use natural names like "navegador", "música", "calculadora", "correo", "consola", "archivos", "discord", "word", "youtube".' } }, required: ['appName'] }
+• Social: instagram/ig, twitter/x, facebook/fb, tiktok, linkedin, reddit, pinterest
+• Web: youtube/yt, gmail/correo, drive, maps/mapas, chatgpt/gpt, claude, netflix
+• Gaming: steam, epic games, battle.net/blizzard, minecraft, origin, twitch, gog
+• Design: photoshop/ps, illustrator/ai, figma/diseño, blender, premiere, after effects, lightroom
+• Security: malwarebytes/antivirus, defender, bitwarden, nordvpn
+• Utility: snipping tool/recortes, winrar/7zip, anydesk/escritorio remoto, powertoys
+• Unknown app? Use list_installed_apps first to find the exact name, THEN call launch_app.`,
+      parameters: { type: 'object', properties: { appName: { type: 'string', description: 'App name in Spanish or English. Use natural names like "navegador", "música", "calculadora", "correo", "consola", "archivos", "discord", "word", "youtube", "minecraft". Also supports categories: "un juego", "un navegador", "el editor de código".' } }, required: ['appName'] }
+    },
+    {
+      name: 'create_prompt',
+      description: `Creates a ready-to-copy prompt for the user to paste into another AI (ChatGPT, Claude, Gemini, Midjourney, etc.).
+USE ONLY when the user explicitly asks to create/generate a prompt ("hazme un prompt para...", "creá un prompt...", "armame un prompt...").
+Write the COMPLETE final prompt text yourself (as the user's message to the other AI, in the target language of that AI) and pass it in the prompt parameter.
+The user will see it in the Prompts panel with a copy button — do NOT repeat the full prompt in your spoken reply, just explain briefly what it does.
+Include direct web links only if they help the prompt (e.g. reference URLs); pass them in the links array.
+Example: user says "hazme un prompt para ChatGPT que sea un resumen de mi documento" → title="Resumen de documento", prompt="Actúa como un analista senior...".`,
+      parameters: { type: 'object', properties: {
+        title: { type: 'string', description: 'Short title for the prompt (e.g. "Resumen de documento", "Prompt para editar fotos").' },
+        prompt: { type: 'string', description: 'The complete prompt text, ready to copy and paste into another AI.' },
+        links: { type: 'array', items: { type: 'string' }, description: 'Optional direct URLs to include with the prompt.' }
+      }, required: ['prompt'] }
+    },
+    {
+      name: 'list_installed_apps',
+      description: `Lists all installed applications on Windows — Win32 programs, Microsoft Store/UWP apps, and Start Menu shortcuts. Use this when:
+• User asks "qué apps tengo instaladas", "listá las aplicaciones", "mostrame los programas"
+• User wants to know if a specific app is installed (use filter)
+• Before calling launch_app for an unknown app, check if it exists first
+Returns app names with their types (Win32, UWP, Shortcut, App).`,
+      parameters: { type: 'object', properties: { filter: { type: 'string', description: 'Optional filter to search for specific apps by name (e.g. "minecraft", "chrome", "adobe"). Case insensitive.' } } }
+    },
+    {
+      name: 'remember_app',
+      description: `Teaches Jarvis a new application that isn't in the known list. Use when the user says "acordate de esta app", "aprendé esta aplicación", "guardá este programa". After saving, Jarvis will open it instantly next time.
+Parameters: name (what to call it), path (full path to the .exe or shortcut). Example: name="mi programa", path="C:\\Tools\\myapp.exe"`,
+      parameters: { type: 'object', properties: { name: { type: 'string', description: 'Short name to call the app (e.g. "mi programa", "editor especial").' }, path: { type: 'string', description: 'Full path to the executable or shortcut (e.g. "C:\\Program Files\\App\\app.exe").' } }, required: ['name', 'path'] }
+    },
+    {
+      name: 'forget_app',
+      description: 'Makes Jarvis forget a custom application that was previously saved with remember_app. Use when the user says "olvidá esta app", "borrá este programa".',
+      parameters: { type: 'object', properties: { name: { type: 'string', description: 'Name of the custom app to forget.' } }, required: ['name'] }
+    },
+    {
+      name: 'list_user_apps',
+      description: 'Lists all custom applications the user has taught Jarvis via remember_app. Use when the user asks "qué apps me guardaste", "mostrame mis programas guardados".',
+      parameters: { type: 'object', properties: {} }
     },
     ...getIntegrationDeclarations(),
     {
@@ -51,14 +93,44 @@ EXAMPLES:
       parameters: { type: 'object', properties: { command: { type: 'string', description: 'PowerShell command or script to execute. Can be multi-line.' }, description: { type: 'string', description: 'Brief human-readable description of what this command does (shown to user).' } }, required: ['command', 'description'] }
     },
     {
+      name: 'clean_system',
+      description: `Optimiza el sistema operativo: analiza y limpia archivos basura y temporales de forma segura.
+ZONAS QUE LIMPIA:
+• Temporales de usuario (%TEMP%)
+• Temporales de Windows (C:\\Windows\\Temp)
+• Caché de npm
+• Papelera de reciclaje (se vacía)
+
+CÓMO USARLO:
+1. SIEMPRE llamá primero con mode="analyze" (solo mide el espacio recuperable, NO borra nada).
+2. Contale al usuario cuánto espacio se puede liberar y PEDILE CONFIRMACIÓN.
+3. Solo si el usuario confirma, llamá con mode="clean".
+
+Usar cuando el usuario pide: "limpiá la PC", "optimizá el sistema", "limpiá archivos temporales/basura", "liberá espacio", "vacía la papelera", "clean the PC", "remove temp files".
+NUNCA borres archivos personales (documentos, descargas, escritorio) — este tool solo toca temporales y cachés seguros.`,
+      parameters: { type: 'object', properties: {
+        mode: { type: 'string', description: '"analyze" (default): mide el espacio recuperable sin borrar nada. "clean": borra los archivos temporales, la caché de npm y vacía la papelera.' }
+      }, required: [] }
+    },
+    {
       name: 'set_volume',
       description: 'Sets Windows master audio volume from 0 to 100. ALWAYS use this instead of PowerShell for volume control.',
       parameters: { type: 'object', properties: { percentage: { type: 'integer', description: 'Volume level 0-100. 0=mute, 50=half, 100=max.' } }, required: ['percentage'] }
     },
     {
+      name: 'get_volume',
+      description: 'Gets current Windows master audio volume level (0-100). Use when calculating relative adjustments or checking current volume.',
+      parameters: { type: 'object', properties: {} }
+    },
+    {
       name: 'set_brightness',
       description: 'Sets screen brightness from 0 to 100. ALWAYS use this instead of PowerShell for brightness control.',
       parameters: { type: 'object', properties: { percentage: { type: 'integer', description: 'Brightness level 0-100.' } }, required: ['percentage'] }
+    },
+    {
+      name: 'get_brightness',
+      description: 'Gets current Windows screen brightness level (0-100). Use when calculating relative adjustments or checking current brightness.',
+      parameters: { type: 'object', properties: {} }
     },
     {
       name: 'search_web',
@@ -71,8 +143,12 @@ USE THIS when you need to:
 
 The user says: "busca", "investiga", "qué es", "quién es", "cuánto cuesta", "busca información", "find", "search", "look up", "what is", "who is"
 
-Returns structured text you can read and use in your response. Use fetch_url for deeper content from specific links.`,
-      parameters: { type: 'object', properties: { query: { type: 'string', description: 'Search query in the most natural language for the topic.' }, engine: { type: 'string', description: 'Engine: "auto" (Google if configured, else DuckDuckGo, default), "wikipedia" (encyclopedic facts), "youtube" (find videos).' } }, required: ['query'] }
+Returns structured text you can read and use in your response. Use fetch_url for deeper content from specific links.
+Backends tried in order: SerpAPI → Google Custom Search → Tavily AI → DuckDuckGo → Wikipedia → Google scrape.
+BREVITY: When replying after a search, say ONLY what the user asked and ONLY what the search actually returned. No extra commentary, no filler, no repeated questions. Short answer (max 4 sentences or 6 bullets) + relevant links.
+
+LINKS: When you reply, always include the most relevant links as clickable markdown links: [descripción breve](https://url-completa). NEVER type or read bare URLs aloud (they get distorted) — always wrap them in markdown [text](url). If the user asks for a link, give it exactly as shown in the search results.`,
+      parameters: { type: 'object', properties: { query: { type: 'string', description: 'Search query in the most natural language for the topic.' }, engine: { type: 'string', description: 'Engine: "auto" (SerpAPI/Google/Tavily/DDG, default), "wikipedia" (encyclopedic facts), "youtube" (find videos).' } }, required: ['query'] }
     },
     {
       name: 'open_browser',
@@ -115,6 +191,120 @@ Returns structured text you can read and use in your response. Use fetch_url for
       parameters: { type: 'object', properties: { category: { type: 'string', description: 'Filter by category (optional).' }, keyword: { type: 'string', description: 'Search keyword to filter facts (optional).' }, limit: { type: 'number', description: 'Max results to return. Default: 10.' } } }
     },
     {
+      name: 'save_task',
+      description: 'Saves a new task with status tracking. Use when the user says "recuerda esta tarea", "anotá que tengo que", "agendá", "no olvides que tengo que", "recordame que". Tasks persist with status (pending/completed) and can be organized by category (school, work, office, business, personal, study, health, project).',
+      parameters: { type: 'object', properties: { title: { type: 'string', description: 'Task title (required).' }, category: { type: 'string', description: 'Category: "school", "work", "office", "business", "personal", "study", "health", "project", "general". Default: "general".' }, description: { type: 'string', description: 'Optional details about the task.' }, dueDate: { type: 'string', description: 'Due date like "2026-08-15", "next friday", "mañana", "next week".' }, priority: { type: 'string', description: '"low", "normal", or "high". Default: "normal".' } }, required: ['title'] }
+    },
+    {
+      name: 'list_tasks',
+      description: 'Lists saved tasks with optional filters. Use when the user asks "qué tareas tengo", "mostrame mis tareas", "qué me falta hacer", "decime mis pendientes".',
+      parameters: { type: 'object', properties: { category: { type: 'string', description: 'Filter by category (optional): "school", "work", "office", "business", "personal", "study", "health", "project".' }, status: { type: 'string', description: 'Filter by status: "pending" or "completed". Default: all.' }, keyword: { type: 'string', description: 'Search keyword to filter tasks by title or description (optional).' } } }
+    },
+    {
+      name: 'complete_task',
+      description: 'Marks a task as completed. Use when the user says "terminé", "completé", "ya hice", "listo la tarea", "marcá como hecha".',
+      parameters: { type: 'object', properties: { taskId: { type: 'string', description: 'Task ID to mark as completed. Get it from list_tasks first if unsure.' } }, required: ['taskId'] }
+    },
+    {
+      name: 'delete_task',
+      description: 'Permanently removes a task from memory. Use when the user says "eliminá esta tarea", "borrála", "no me interesa más".',
+      parameters: { type: 'object', properties: { taskId: { type: 'string', description: 'Task ID to delete.' } }, required: ['taskId'] }
+    },
+    {
+      name: 'save_research',
+      description: 'Guarda un proyecto, investigación, análisis, o cualquier contenido largo como archivo .md persistente. IMPORTANTE: NO digas el contenido en voz — poné TODO el contenido en el parámetro "content". Usar cuando el usuario pide "guardá esto", "archivá este proyecto", "preservá este análisis". Se guarda en una carpeta organizada por categoría.',
+      parameters: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', description: 'Título descriptivo del proyecto. OBLIGATORIO: no lo dejes vacío. Ej: "Analisis Jarvis V3", "Guia de instalacion", "Proyecto X"' },
+          content: { type: 'string', description: 'Contenido COMPLETO a guardar en Markdown. OBLIGATORIO: poné ACÁ todo el contenido, no lo digas en voz.' },
+          category: { type: 'string', description: 'Categoría opcional (ej: "video", "code", "idea", "tutorial", "project"). Default: "general"' }
+        },
+        required: ['title', 'content']
+      }
+    },
+    {
+      name: 'create_plan',
+      description: 'Crea un plan estructurado con pasos y lo guarda permanentemente. Aparece en el panel Plan (icono en barra superior). Usar cuando el usuario pide "creá un plan", "armá un plan de acción", "planificame", "hacé un plan de 30 días". Recibí un título, objetivo general, y array de pasos.',
+      parameters: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', description: 'Título del plan. Ej: "Plan negocio digital Paraguay", "Plan 30 dias marketing"' },
+          goal: { type: 'string', description: 'Objetivo general del plan' },
+          steps: { type: 'array', items: { type: 'object', properties: { desc: { type: 'string', description: 'Descripción del paso' } }, required: ['desc'] }, description: 'Lista de pasos a seguir en orden' },
+          category: { type: 'string', description: 'Categoría opcional (ej: "negocio", "marketing", "coding", "fitness"). Default: "general"' }
+        },
+        required: ['title', 'steps']
+      }
+    },
+    {
+      name: 'start_plan',
+      description: 'Inicia la ejecución de un plan guardado. Reinicia la conversación y activa el MODO PLAN: el asistente ejecutará los pasos uno por uno automáticamente. Usar cuando el plan está listo y el usuario quiere ejecutarlo.',
+      parameters: {
+        type: 'object',
+        properties: {
+          planId: { type: 'string', description: 'ID del plan a ejecutar' }
+        },
+        required: ['planId']
+      }
+    },
+    {
+      name: 'update_step',
+      description: 'Actualiza el estado de un paso del plan. Llamar después de ejecutar cada paso para marcarlo como done o failed.',
+      parameters: {
+        type: 'object',
+        properties: {
+          planId: { type: 'string', description: 'ID del plan' },
+          stepIndex: { type: 'number', description: 'Índice del paso (0-based)' },
+          status: { type: 'string', enum: ['done', 'failed', 'in_progress'], description: 'Nuevo estado del paso' },
+          result: { type: 'string', description: 'Resultado opcional de la ejecución del paso' },
+          error: { type: 'string', description: 'Error si el paso falló' }
+        },
+        required: ['planId', 'stepIndex', 'status']
+      }
+    },
+    {
+      name: 'update_plan',
+      description: 'Modifica un plan existente durante la ejecución. Podés cambiar el título, objetivo, agregar/quitar/reordenar pasos, o ajustar cualquier detalle. El plan es totalmente flexible y se adapta a lo que el usuario necesite en el momento.',
+      parameters: {
+        type: 'object',
+        properties: {
+          planId: { type: 'string', description: 'ID del plan a modificar' },
+          title: { type: 'string', description: 'Nuevo título (opcional)' },
+          goal: { type: 'string', description: 'Nuevo objetivo (opcional)' },
+          steps: { type: 'array', items: { type: 'object', properties: { desc: { type: 'string', description: 'Descripción del paso' } }, required: ['desc'] }, description: 'Lista completa de pasos (reemplaza los anteriores). Incluí también los pasos ya completados para mantener el historial.' },
+          category: { type: 'string', description: 'Nueva categoría (opcional)' }
+        },
+        required: ['planId']
+      }
+    },
+    {
+      name: 'exit_plan_mode',
+      description: 'Sale del MODO PLAN y vuelve al modo normal de conversación. Llamar cuando todos los pasos del plan se completaron o cuando el usuario cancela la ejecución.',
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: []
+      }
+    },
+    {
+      name: 'analyze_path',
+      description: `Analiza CUALQUIER archivo o carpeta en el sistema. Detecta el tipo de archivo al instante, lee su contenido si es texto, y muestra metadatos (tamaño, fecha). Para carpetas, lista TODO el contenido ordenado (numerado) con tipo de cada archivo. Usar cuando el usuario dice "analizá", "analizame esto", "qué hay aquí", "decime qué es este archivo", "listame los archivos de". NO usarlo para buscar contenido específico — usá search_documents para eso.`,
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'Ruta completa del archivo o carpeta a analizar. Ej: "%USERPROFILE%\\Downloads", "%USERPROFILE%\\Documents\\archivo.pdf"' },
+          deep: { type: 'boolean', description: 'Si es true, analiza subcarpetas también (máximo 2 niveles). Default: false' }
+        },
+        required: ['path']
+      }
+    },
+    {
+      name: 'search_documents',
+      description: 'Busca en TODOS tus documentos locales (Documentos, Descargas, Escritorio) el contenido que coincida con una consulta. Lee archivos de texto y busca coincidencias relevantes. Útil para encontrar apuntes, información guardada, o cualquier contenido textual que hayas escrito. Usar cuando el usuario pregunta "buscame en mis documentos", "encontrá lo que habla sobre", "buscame información sobre", "dónde guardé lo de". Returns file names with the matching content snippets.',
+      parameters: { type: 'object', properties: { query: { type: 'string', description: 'The text to search for in your documents. Can be a word, phrase, or topic.' } }, required: ['query'] }
+    },
+    {
       name: 'open_file',
       description: `Opens any file, folder, or drive using the default Windows application. Use for:
 • Documents: PDF, DOCX, XLSX, images, videos, audio
@@ -142,31 +332,39 @@ DO NOT use for websites (use open_browser) or installed apps by name (use launch
         sport: { type: 'string', description: 'Sport or competition (e.g. "fútbol", "World Cup", "NFL", "NBA", "F1", "Champions League"). Leave empty for all sports.' }
       }, required: [] }
     },
+
     {
-      name: 'deep_research',
-      description: `Performs COMPREHENSIVE multi-source research on any topic. Uses multiple search engines to gather and compile information. Returns all findings in a structured report format.
-USE when the user says: "investiga a fondo", "investiga", "averigua todo sobre", "dame información completa sobre", "investigate", "research", "tell me everything about", "deep dive into".
-For simple lookups, use search_web instead.`,
-      parameters: { type: 'object', properties: { topic: { type: 'string', description: 'Topic or question to research comprehensively.' }, depth: { type: 'string', description: '"quick" (fast, 1 source), "normal" (multiple sources, default), "deep" (all sources, most comprehensive).' } }, required: ['topic'] }
+      name: 'analyze_page',
+      description: `Opens any URL in a hidden browser, executes JavaScript, extracts ALL visible text content, and captures a screenshot for visual analysis. Use this to read full articles, documentation, or investigate any web page completely — including dynamic/SPA pages that need JavaScript. Returns up to 80K characters of text plus a screenshot.
+
+USE THIS when the user says: "entra a esta página", "analiza esta web", "léeme este artículo", "qué dice esta página", "investiga esta URL", "scrapea esta página", "abre y lee", "get content from this URL", "read this page", "analyze this website".
+
+For simple searches, use search_web. For existing links in search results, use fetch_url.`,
+      parameters: { type: 'object', properties: { url: { type: 'string', description: 'Full URL to analyze (https://...). Also accepts domain names without protocol.' }, reason: { type: 'string', description: 'Why we are analyzing this URL.' } }, required: ['url', 'reason'] }
     },
     {
       name: 'file_operation',
-      description: `Performs file system operations. Use for reading, writing, listing, moving, copying, or deleting files and folders.
+      description: `Performs file system operations. SMART summaries and full file management.
 OPERATIONS:
-• list: List directory contents (path = directory)
+• list/summary: Show SMART FOLDER SUMMARY — counts, folders, key files, sizes. Just pass path.
 • read: Read file content (path = file)
 • write: Save content to file (path + content required)
-• delete: Delete file or folder (path)
+• delete: Delete CONTENTS of a folder (leaves folder empty), or delete a single file (path)
+• delete_folder: Delete entire folder including the folder itself (path)
 • move: Move/rename file (path = source, destination = target)
 • copy: Copy file (path = source, destination = target)
-• find: Search for files by pattern (path = search dir, pattern = e.g. "*.pdf")
-• info: Get file size, date, type (path = file)`,
+• find/search: Search for files by name pattern (path = base dir, pattern = e.g. "*.pdf" or "report*")
+• info: Get file size, date, type (path = file)
+• folder/find_folder: Search ONLY folders by name (path = base dir, pattern = folder name)
+• media/multimedia: Find media files (images/videos/audio). Requires path + mediaType("images","videos","audio","all")`,
       parameters: { type: 'object', properties: {
-        operation: { type: 'string', description: 'Operation: list, read, write, delete, move, copy, find, info.' },
+        operation: { type: 'string', description: 'Operation: list, summary, read, write, delete, move, copy, find, search, info, folder, find_folder, media, multimedia.' },
         path: { type: 'string', description: 'Source path. Use %USERPROFILE%, %DESKTOP%, %DOCUMENTS% for common locations.' },
         content: { type: 'string', description: 'Content to write (for write operation).' },
         destination: { type: 'string', description: 'Destination path (for move/copy).' },
-        pattern: { type: 'string', description: 'File pattern (for find): "*.txt", "*report*", "project*.js".' }
+        pattern: { type: 'string', description: 'File/folder pattern: "*.txt", "*report*", "project*.js".' },
+        mediaType: { type: 'string', description: 'Media type for media operation: "images", "videos", "audio", "all".' },
+        maxResults: { type: 'number', description: 'Max results for find/media (default 20-50).' }
       }, required: ['operation', 'path'] }
     },
     {
@@ -216,10 +414,10 @@ Time formats: "in 30 minutes", "in 2 hours", "at 15:30", "tomorrow at 9:00", "20
     },
     {
       name: 'desktop_action',
-      description: 'Manages the Windows desktop: change wallpaper (via image URL or hex color), get system stats (CPU/RAM/disk).',
+      description: 'Manages the Windows desktop: change wallpaper (via local file path, image URL or hex color), get system stats (CPU/RAM/disk).',
       parameters: { type: 'object', properties: {
         action: { type: 'string', description: '"wallpaper" (change wallpaper), "stats" (system CPU/RAM/disk info).' },
-        value: { type: 'string', description: 'For wallpaper: image URL or hex color like "#1a1a2e".' }
+        value: { type: 'string', description: 'For wallpaper: local file path, image URL or hex color like "#1a1a2e".' }
       }, required: ['action'] }
     },
     {
@@ -254,10 +452,10 @@ Time formats: "in 30 minutes", "in 2 hours", "at 15:30", "tomorrow at 9:00", "20
     },
     {
       name: 'find_files',
-      description: 'Searches for files and folders by name pattern. Returns path, size, and date. Use when user asks to find a file or folder.',
+      description: 'Searches for files and folders by name pattern across your system. Returns found items with sizes and paths. Use for finding documents, media, any file. For focused media search use file_operation with operation="media".',
       parameters: { type: 'object', properties: {
-        pattern: { type: 'string', description: 'Search pattern with wildcards: "*.pdf", "*.txt", "*informe*", "proyecto*.js", "*.mp4".' },
-        path: { type: 'string', description: 'Directory to search. Default: Desktop and Documents.' },
+        pattern: { type: 'string', description: 'Search pattern with wildcards: "*.pdf", "*.txt", "*informe*", "proyecto*.js", "*.mp4", "*foto*".' },
+        path: { type: 'string', description: 'Directory to search. Default: User home folder.' },
         maxResults: { type: 'integer', description: 'Max results to return (default 20, max 50).' }
       }, required: ['pattern'] }
     },
@@ -272,16 +470,62 @@ Time formats: "in 30 minutes", "in 2 hours", "at 15:30", "tomorrow at 9:00", "20
     },
     {
       name: 'take_screenshot',
-      description: `Captures a screenshot of the user's current screen and sends it to you for visual analysis.
-WHEN TO USE:
-• User asks "what's on my screen", "look at this", "what do you see", "analyze this image"
-• User needs help with something visual on their screen
-• User asks you to read something from their screen
-• Any visual question about the current desktop or application
-OUTPUT: You will receive the screenshot as an image. Describe what you see in detail.`,
+      description: `Captures a screenshot of the user's current screen and analyzes it visually.
+TOKEN COST: ALTA — cada captura gasta una cantidad significativa de tokens. SOLO usar cuando sea ESTRICTAMENTE necesario.
+
+CUÁNDO USAR (SOLO estos casos):
+• El usuario pide explícitamente: "mirá mi pantalla", "¿qué ves?", "tomá captura", "analizá esto", "SS"
+• El usuario está siguiendo un tutorial y no sabe dónde hacer clic (GUJALO con pasos numerados)
+• El usuario reporta un error visual que necesita verse para diagnosticar
+• El usuario te pide ayuda con un programa específico y necesitás ver la interfaz
+
+CUÁNDO NO USAR:
+• Conversación casual o preguntas simples sin contexto visual
+• "Por las dudas" o para enriquecer — solo si es ESENCIAL
+• Lo que ya sabés sin ver la pantalla
+
+ADVERTENCIA: Antes de llamar a esta herramienta, advertí al usuario que vas a tomar una captura y esperá su confirmación verbal.`,
       parameters: { type: 'object', properties: {
-        description: { type: 'string', description: 'What the user wants you to look at or analyze on their screen. Be specific.' }
-      }, required: ['description'] }
+        question: { type: 'string', description: 'Specific question to answer about the screen. Default: describe everything visible.' }
+      }, required: [] }
+    },
+    {
+      name: 'analyze_screen',
+      description: `Captures a screenshot and answers a specific question about it.
+TOKEN COST: ALTA — igual que take_screenshot. Solo usar cuando sea esencial.
+
+Usar en lugar de take_screenshot cuando necesitás una respuesta precisa (ej: "¿qué error aparece?", "¿cuál es el nombre del archivo?", "extraé el texto de la pantalla").
+
+ADVERTENCIA: Antes de llamar a esta herramienta, advertí al usuario que vas a tomar una captura.`,
+      parameters: { type: 'object', properties: {
+        question: { type: 'string', description: 'The exact question to answer about the current screen content.' },
+        prompt:   { type: 'string', description: 'Alternative field for the question/task.' }
+      }, required: ['question'] }
+    },
+    {
+      name: 'save_research',
+      description: `Saves a completed research paper or academic work to the research system. Use AFTER calling deep_research or when the user asks to save research results.
+
+Each research has PAGES (sections like introduction, development, conclusion, sources). The user can view, browse, and download them later from the Investigaciones button.
+
+Parameters:
+- topic: The research topic/title
+- type: "academic" (colegio/universidad), "professional" (trabajo), "general" (default)
+- pages: Array of { title, content } objects for each section
+- sources: Array of source strings (optional)`,
+      parameters: { type: 'object', properties: {
+        topic: { type: 'string', description: 'Title or topic of the research paper.' },
+        type: { type: 'string', description: 'Type: "academic", "professional", or "general". Default "academic".' },
+        pages: { type: 'array', description: 'Array of page/section objects. Each has a title and content.', items: {
+          type: 'object',
+          properties: {
+            title: { type: 'string', description: 'Section title (e.g. "Introducción", "Desarrollo", "Conclusión", "Fuentes").' },
+            content: { type: 'string', description: 'Full content of the section in Spanish.' }
+          },
+          required: ['title', 'content']
+        } },
+        sources: { type: 'array', description: 'Array of source strings (optional).', items: { type: 'string' } }
+      }, required: ['topic', 'pages'] }
     },
     {
       name: 'edit_video',
@@ -305,5 +549,89 @@ OUTPUT: You will receive the screenshot as an image. Describe what you see in de
         crf: { type: 'number', description: 'CRF value for compress (18-28, lower = better quality). Default 28.' }
       }, required: ['operation', 'input'] }
     },
+    {
+      name: 'organize_folder',
+      description: `Organizes, inspects, and manages files in a folder.
+
+MODES:
+• preview  — Analyzes the folder and shows what would be organized. ALWAYS run this first before execute.
+• execute  — Actually moves the files into categorized subfolders (only after user confirms preview).
+• undo     — Reverts the last organization and restores all files to their original location.
+• inspect  — READS the inside of a folder: lists all files, previews text/code/config file contents (up to 300 chars each), and groups binary files by type. Use this when the user wants to know WHAT IS INSIDE a folder (not just organize it).
+
+WHEN TO USE:
+• "organizá mis Descargas", "limpiá el Escritorio", "ordená la carpeta" → preview then execute
+• "qué hay en esta carpeta", "leé los archivos de", "inspeccioná", "qué tiene adentro", "mostrame el contenido" → inspect
+• "deshacé la organización" → undo
+
+SUPPORTED PATHS (Spanish & English):
+• "Descargas" / "Downloads" → Downloads folder
+• "Escritorio" / "Desktop" → Desktop
+• "Documentos" / "Documents" → Documents
+• %USERPROFILE%, absolute paths, or relative descriptions
+
+WORKFLOW (organize):
+1. Call with mode="preview" → shows summary
+2. Tell user what will happen and ask for confirmation
+3. If confirmed, call with mode="execute"
+4. Report results and mention undo is available`,
+      parameters: { type: 'object', properties: {
+        path: { type: 'string', description: 'Folder to organize or inspect. Examples: "Descargas", "Escritorio", "%USERPROFILE%\\Downloads", "%DESKTOP%". Spanish folder names (Descargas, Escritorio, Documentos) are resolved automatically.' },
+        mode: { type: 'string', description: '"preview" (analyze only, default — ALWAYS run this first before execute), "execute" (actually move files, only after user confirms), "undo" (revert last organization), "inspect" (read file contents — use when user wants to see what is inside a folder).' },
+        filter: { type: 'string', description: 'Optional file extension filter for inspect mode (e.g. "txt", "json", "py"). Omit to inspect all files.' }
+      }, required: ['path'] }
+    },
+    {
+      name: 'create_document',
+      description: `Creates a document file of any format with structured content. Use when the user asks to create, write, or generate a document, report, PDF, essay, plan, guide, or any written file.
+
+FORMATS SUPPORTED:
+• pdf    — Professional PDF with cover page and styled sections (default)
+• docx   — Word-compatible RTF document (opens in Word/LibreOffice)
+• html   — Web page (HTML file)
+• md     — Markdown file
+• txt    — Plain text
+• csv    — Spreadsheet data
+• json   — JSON data file
+
+IMPORTANT RULES FOR CONTENT GENERATION:
+1. ALWAYS use real, researched information. If the topic requires facts, use search_web BEFORE calling this tool.
+2. Each section must have UNIQUE and SUBSTANTIAL content — never repeat the same idea across sections.
+3. Generate professional, well-organized content with personality and depth.
+4. If the user asks for N pages/sections, create exactly N sections with genuinely different content.
+5. Don't ask for confirmation — create the document directly.
+
+WHEN TO USE:
+• "creame un PDF de...", "escribí un documento sobre...", "generá un informe de...", "armame un plan en PDF"
+• "hacé un ensayo sobre...", "escribí una guía de...", "creá un reporte de..."
+
+savePath options: "Escritorio" (default), "Documentos", "Descargas", or absolute path.`,
+      parameters: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', description: 'Document title.' },
+          format: { type: 'string', description: 'File format: "pdf" (default), "docx", "html", "md", "txt", "csv", "json".' },
+          sections: {
+            type: 'array',
+            description: 'Array of document sections. Each section has a unique title and substantial content.',
+            items: {
+              type: 'object',
+              properties: {
+                title: { type: 'string', description: 'Section title.' },
+                content: { type: 'string', description: 'Full section text. Write complete paragraphs, not bullet points or outlines. Be thorough and specific.' },
+              },
+              required: ['title', 'content'],
+            },
+          },
+          filename: { type: 'string', description: 'Output filename without extension. Default: derived from title.' },
+          savePath: { type: 'string', description: 'Where to save: "Escritorio" (default Desktop), "Documentos", "Descargas", or an absolute path.' },
+          author: { type: 'string', description: 'Author name to show on cover page (optional).' },
+          openAfter: { type: 'boolean', description: 'Open the file automatically after creation. Default: true.' },
+        },
+        required: ['title', 'sections'],
+      },
+    },
+    ...getPlannerDeclarations(),
+
   ];
 }

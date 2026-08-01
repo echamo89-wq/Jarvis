@@ -22,7 +22,7 @@ export function _cleanModelText(text) {
     if (enRatio > 0.70 && !hasSpanish(text)) return '';
   }
   text = text
-    .replace(/`[^`]+`/g, '')
+    .replace(/`([^`]+)`/g, '$1')
     .replace(/^#{1,6}\s+/gm, '')
     .replace(/^\s*[-*+]\s+/gm, '')
     .replace(/^\s*\d+[.)]\s+/gm, '')
@@ -56,8 +56,8 @@ export function _separateThinkingAndResponse(text) {
     /^considerando|revisando datos|procesando|preparando/i,
 
     // Inglés — "I'm doing X", "I've done Y", "My plan..."
-    /^(i'm |i am |i will |i'll |i've |i have |i need to |i should |i must |i can |i want |i\'?d like |let me |my (plan|goal|aim|focus|objective|next step|priority|approach|strategy|method) (is|was|will be))/i,
-    /^(i (focused|analyzed|determined|identified|looked|started|began|decided|chose|selected|took|made|considered|thought|realized|noticed|understood|recognized|examined|checked|verified|confirmed|found|discovered|noted|attempted|tried|attempted|proceeded|continued|moved|switched|pivoted|shifted))/i,
+    /^(i'm |i am |i will |i'll |i've |i have |i need to |i should |i must |i can |i want |i\'?d like |let me |my (plan|goal|aim|focus|objective|next step|priority|approach|strategy|method|response|answer|task|role|job|purpose|intention) (is|was|will be|should be|must be|would be|is to|was to))/i,
+    /^(i (focused|analyzed|determined|identified|looked|started|began|decided|chose|selected|took|made|considered|thought|realized|noticed|understood|recognized|examined|checked|verified|confirmed|found|discovered|noted|attempted|tried|attempted|proceeded|continued|moved|switched|pivoted|shifted|registered|acknowledged|received|gathered|collected|processed|read|formulated|crafted|generated|produced|responded|addressed|handled))/i,
     /^(the (user|question|request|query|input|message|command|instruction|task|goal)).*(has |is |was |wants |asks |says |asked |wanted |said |requested|indicates|refers|represents|expresses|can be|should be|needs|requires)/i,
     /^(analyzing|determining|identifying|checking|verifying|confirming|examining|considering|evaluating|assessing|reviewing|looking|searching|fetching|retrieving|gathering|collecting|compiling|preparing|formulating|crafting|creating|generating|building|writing|developing|designing|refining|adjusting|modifying|improving|enhancing|finalizing|planning|outlining|summarizing)/i,
     /^(to (respond|answer|get|find|check|verify|determine|look|create|generate|craft|produce|formulate|address|handle|process|understand|identify|confirm|ensure|make|provide|give|offer|present|show|demonstrate|explain|clarify|elaborate))/i,
@@ -81,6 +81,12 @@ export function _separateThinkingAndResponse(text) {
     // Headers de narrativa interna
     /^\*\*[^*]+\*\*\s*$/,
     /^(clarifying|interpreting|processing|analyzing|determining|investigating|researching|searching|planning|preparing|formulating|crafting|creating|generating|building|writing|developing|designing|refining|adjusting|improving|enhancing|finalizing) /i,
+
+    // Imperativos/encabezados de proceso interno (Acknowledge the Greeting, etc.)
+    /^(acknowledge|respond|greet|summarize|translate|analyze|evaluate|assess|review|check|verify|confirm|determine|identify|extract|gather|collect|process|prepare|formulate|craft|create|generate|build|write|develop|design|outline|plan|structure|organize|format|edit|revise|refine|improve|optimize|finalize|complete|finish|conclude|end|close) (the|this|their|user|request|query|input|message|greeting|question|command|instruction|task|data|information|context|result|output|response|answer|text|content|file|document|image)/i,
+
+    // Catch-all: oración que habla de su propio proceso ("I will not ask how I can help")
+    /^i (will not|won't|will never|should not|must not|cannot|can't|shan't|shall not) /i,
   ];
 
   const sentences = cleanText.split(/(?<=[.!?])\s+/);
@@ -110,16 +116,7 @@ export function _separateThinkingAndResponse(text) {
   };
 }
 
-export function updateThinkingPanel(text) {
-  const thinkingBody = document.getElementById('thinking-body');
-  if (!thinkingBody) return;
-  const prev = thinkingBody.innerText;
-  thinkingBody.innerText = text && text.trim() ? text : 'Sin procesos activos.';
-  if (text && text.trim() && text !== prev) {
-    _convLog('conv_think', text.substring(0, 200));
-    thinkingBody.scrollTop = thinkingBody.scrollHeight;
-  }
-}
+export function updateThinkingPanel() {}
 
 export function _extractTitle(text) {
   const headerMatch = text.match(/^\s*#\s+(.+)/m);
@@ -144,4 +141,29 @@ export function extractCodeBlocks(text) {
     blocks.push({ lang, code, title: name });
   }
   return blocks;
+}
+
+const _URL_RE = /(https?:\/\/[^\s<>"']+)/g;
+const _MD_LINK_RE = /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g;
+const _TOKEN_RE = /§L(\d+)§/g;
+
+export function renderRichText(text) {
+  if (!text) return '';
+  const esc = (s) => s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+  const links = [];
+  let out = esc(text);
+  out = out.replace(_MD_LINK_RE, (_, label, url) => {
+    links.push(`<a href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>`);
+    return `§L${links.length - 1}§`;
+  });
+  out = out.replace(_URL_RE, (url) => {
+    links.push(`<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`);
+    return `§L${links.length - 1}§`;
+  });
+  return out.replace(_TOKEN_RE, (_, i) => links[+i] || '');
 }

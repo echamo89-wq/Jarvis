@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, shell, Notification, net, globalShortcut, Tray, Menu, nativeImage, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const { spawn, exec, execFile } = require('child_process');
 const WebSocket = require('ws');
 const http = require('http');
@@ -12,6 +13,7 @@ const { registerSecureStorageIpc, loadCredentials, saveCredentials } = require('
 const { registerPsIpc } = require('./main/ps-executor');
 const { registerAppFinder } = require('./main/app-finder');
 const { registerYtdlIpc } = require('./main/ytdl-executor');
+const { registerYoutubeUploader } = require('./main/yt-uploader');
 const { setupUpdater, checkForUpdatesSilent } = require('./main/updater');
 
 // ─── Capturar errores no manejados en el proceso principal ───
@@ -107,14 +109,14 @@ function createSplashWindow() {
   _splashTimeout = setTimeout(_showMainWindowFallback, 30000);
 
   _splashWindow = new BrowserWindow({
-    width: 380,
-    height: 520,
+    width: 180,
+    height: 180,
     frame: false,
-    transparent: false,
+    transparent: true,
     resizable: false,
     alwaysOnTop: true,
     center: true,
-    backgroundColor: '#000000',
+    backgroundColor: '#00000000',
     icon: path.join(__dirname, 'build', 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -265,51 +267,58 @@ function createMainWindow() {
 
 // ─── Secuencia de precarga durante la splash (progreso real) ─────────────
 async function _runSplashPreload() {
-  const startTime = Date.now();
-  const MIN_SPLASH_MS = 1500;
-
-  const steps = [
-    { pct: 10, label: 'Inicializando sistemas...', task: async () => {
-      await Promise.resolve();
-    }},
-    { pct: 25, label: 'Verificando credenciales...', task: async () => {
-      try {
-        const creds = loadCredentials();
-        if (creds && creds.GEMINI_API_KEY) process.env.GEMINI_API_KEY = creds.GEMINI_API_KEY;
-      } catch {}
-    }},
-    { pct: 55, label: 'Inicializando interfaz...', task: async () => {
-      if (_mainWindow?.webContents?.isLoading()) {
-        await new Promise(resolve => _mainWindow.webContents.once('did-finish-load', resolve));
-      }
-    }},
-    { pct: 85, label: 'Estableciendo canales de comunicación...', task: async () => {
-      await new Promise(r => setTimeout(r, 150));
-    }},
-    { pct: 95, label: 'Finalizando...', task: async () => {
-      await new Promise(r => setTimeout(r, 100));
-    }},
-  ];
-
-  for (const step of steps) {
-    _sendSplashProgress(step.pct, step.label);
-    await step.task();
+  _sendSplashProgress(10, 'Inicializando procesos del sistema...');
+  
+  try {
+    const creds = loadCredentials();
+    if (creds && creds.GEMINI_API_KEY) {
+      process.env.GEMINI_API_KEY = creds.GEMINI_API_KEY;
+    }
+  } catch (e) {
+    console.error('[SPLASH] Error al precargar credenciales:', e.message);
   }
-
-  const elapsed = Date.now() - startTime;
-  if (elapsed < MIN_SPLASH_MS) {
-    await new Promise(r => setTimeout(r, MIN_SPLASH_MS - elapsed));
+  
+  _sendSplashProgress(25, 'Cargando interfaz de usuario...');
+  
+  if (_mainWindow && !_mainWindow.isDestroyed()) {
+    if (_mainWindow.webContents.isLoading()) {
+      await new Promise(resolve => _mainWindow.webContents.once('did-finish-load', resolve));
+    }
   }
-
-  _sendSplashProgress(100, 'Sistemas listos');
-  if (_splashWindow && !_splashWindow.isDestroyed()) {
-    _splashWindow.webContents.send('splash-done');
-  }
+  
+  _sendSplashProgress(45, 'Verificando kernel cognitivo...');
 }
 
 // ─── IPC: Splash lista para recibir mensajes
 ipcMain.on('splash-ready', () => {
   _runSplashPreload();
+});
+
+// ─── IPC: Progreso real enviado desde el renderer
+ipcMain.on('renderer-boot-progress', (event, pct, label) => {
+  _sendSplashProgress(pct, label);
+  if (pct >= 100) {
+    if (_splashTimeout) {
+      clearTimeout(_splashTimeout);
+      _splashTimeout = null;
+    }
+    _sendSplashProgress(100, 'Sistemas JARVIS JS listos');
+    if (_splashWindow && !_splashWindow.isDestroyed()) {
+      _splashWindow.webContents.send('splash-done');
+    }
+  }
+});
+
+// ─── IPC: Capturar errores críticos de inicialización del renderer
+ipcMain.on('renderer-boot-error', (event, errorMsg) => {
+  console.error(`\x1b[31m[BOOT-ERR] Error crítico reportado por el renderer: ${errorMsg}\x1b[0m`);
+  if (_splashTimeout) {
+    clearTimeout(_splashTimeout);
+    _splashTimeout = null;
+  }
+  if (_splashWindow && !_splashWindow.isDestroyed()) {
+    _splashWindow.webContents.send('splash-error', errorMsg);
+  }
 });
 
 // ─── IPC: Splash terminó animación de salida → mostrar ventana principal
@@ -471,6 +480,7 @@ ipcMain.on('window-control', (event, action) => {
 const { cleanupPs } = registerPsIpc((proc) => _trackChildProcess(proc));
 registerAppFinder();
 const { cleanupYtdl } = registerYtdlIpc((proc) => _trackChildProcess(proc));
+registerYoutubeUploader();
 registerAllIpc();
 
 // (open-browser movido a main/ipc/handlers/network.js)
@@ -496,19 +506,24 @@ public class W { [DllImport("user32.dll")] public static extern int SystemParame
   [W]::SystemParametersInfo(20,0,"$($parts[0]) $($parts[1]) $($parts[2])",2);
   Write-Output "OK"
 } elseif ($Action -eq "url") {
-  $img="$env:TEMP\\jarvis_wp_$(Get-Date -f yyyyMMdd_HHmmss).jpg";
-  try {
-    $wc=New-Object -ComObject MSXML2.ServerXMLHTTP;
-    $wc.open("GET", $Value, $false);
-    $wc.send();
-    [IO.File]::WriteAllBytes($img, [Text.Encoding]::ASCII.GetBytes($wc.responseText));
-    Add-Type -TypeDefinition @'
+  Add-Type -TypeDefinition @'
 using System; using System.Runtime.InteropServices;
 public class W2 { [DllImport("user32.dll")] public static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni); }
 '@;
-    [W2]::SystemParametersInfo(20,0,$img,2);
+  if (Test-Path $Value -PathType Leaf) {
+    [W2]::SystemParametersInfo(20,0,$Value,2);
     Write-Output "OK"
-  } catch { Write-Output "ERR_DOWNLOAD_FAILED" }
+  } else {
+    $img="$env:TEMP\\jarvis_wp_$(Get-Date -f yyyyMMdd_HHmmss).jpg";
+    try {
+      $wc=New-Object -ComObject MSXML2.ServerXMLHTTP;
+      $wc.open("GET", $Value, $false);
+      $wc.send();
+      [IO.File]::WriteAllBytes($img, [Text.Encoding]::ASCII.GetBytes($wc.responseText));
+      [W2]::SystemParametersInfo(20,0,$img,2);
+      Write-Output "OK"
+    } catch { Write-Output "ERR_DOWNLOAD_FAILED" }
+  }
 } else { Write-Output "ERR_INVALID_TYPE" }`;
 
 ipcMain.handle('set-wallpaper', async (event, type, value) => {
@@ -526,6 +541,21 @@ ipcMain.handle('set-wallpaper', async (event, type, value) => {
     });
   } catch (err) {
     return { success: false, output: `Error: ${err.message}` };
+  }
+});
+
+// Guardar imagen base64 a disco (para fondo de pantalla de imagen adjunta)
+ipcMain.handle('save-image-file', async (event, { base64, filePath }) => {
+  try {
+    if (!base64 || !filePath) return { success: false, error: 'INVALID_ARGS' };
+    const dir = path.dirname(filePath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const buf = Buffer.from(base64, 'base64');
+    if (buf.length < 100) return { success: false, error: 'INVALID_IMAGE_DATA' };
+    fs.writeFileSync(filePath, buf);
+    return { success: true, output: filePath };
+  } catch (err) {
+    return { success: false, error: err.message };
   }
 });
 
@@ -861,6 +891,160 @@ ipcMain.handle('set-brightness', async (event, percent) => {
   return await setBrightnessToSystem(percent);
 });
 
+// ─── Direct process start (IPC bypass: no PS host, no security checks) ───
+// NO usa `cmd /c start`: en lanzamientos no interactivos cmd.exe se cuelga esperando
+// a la app GUI lanzada (5s de timeout, luego fallback lento). En su lugar:
+// URIs → shell.openExternal (nativo, instantáneo) y ejecutables → spawn directo detached.
+const _ALLOWED_LAUNCH_PROTOCOLS = ['http:', 'https:', 'mailto:', 'tel:', 'windowsdefender:', 'bingmaps:', 'xbox:', 'ms-gamebar:', 'microsoft.windows.camera:'];
+
+function _isLaunchProtocolAllowed(proto) {
+  return proto.startsWith('ms-') || _ALLOWED_LAUNCH_PROTOCOLS.includes(proto);
+}
+
+function _resolveExecutableName(name) {
+  const exts = (process.env.PATHEXT || '.COM;.EXE;.BAT;.CMD').split(';').filter(Boolean);
+  const candidates = [];
+  if (/\.(exe|com|bat|cmd|lnk)$/i.test(name)) candidates.push(name);
+  else exts.forEach(ext => candidates.push(name + ext));
+  const localApps = path.join(process.env.LOCALAPPDATA || '', 'Microsoft', 'WindowsApps');
+  const dirs = [localApps, ...(process.env.PATH || '').split(';').filter(Boolean)];
+  for (const dir of dirs) {
+    if (!dir || !fs.existsSync(dir)) continue;
+    for (const cand of candidates) {
+      const p = path.join(dir, cand);
+      if (fs.existsSync(p)) return p;
+    }
+  }
+  return null;
+}
+
+function _spawnDetached(exe, args) {
+  return new Promise((resolve) => {
+    try {
+      const child = spawn(exe, args || [], { detached: true, stdio: 'ignore', windowsHide: true });
+      child.on('error', (err) => resolve({ success: false, output: err.message }));
+      child.on('spawn', () => { child.unref(); resolve({ success: true }); });
+    } catch (e) {
+      resolve({ success: false, output: e.message });
+    }
+  });
+}
+
+async function _openPathOrSpawn(p) {
+  if (!/\.(exe|com|bat|cmd)$/i.test(p)) {
+    try {
+      const err = await shell.openPath(p);
+      return err ? { success: false, output: err } : { success: true };
+    } catch (e) { return { success: false, output: e.message }; }
+  }
+  return await _spawnDetached(p);
+}
+
+ipcMain.handle('start-process', async (event, target) => {
+  const t = String(target || '').trim();
+  if (!t) return { success: false, output: 'target vacío' };
+
+  // 1) Paquetes empaquetados por AUMID (shell:AppsFolder\...)
+  if (t.startsWith('shell:AppsFolder')) {
+    try {
+      await shell.openExternal(t);
+      return { success: true };
+    } catch (e) {
+      return await _spawnDetached('explorer.exe', [t]);
+    }
+  }
+
+  // 2) Posible URI/protocolo o ruta con letra de unidad (C:/...)
+  if (/^[a-z][a-z0-9+.\-]*:/i.test(t)) {
+    if (fs.existsSync(t)) return await _openPathOrSpawn(t);
+    const proto = (t.match(/^([a-z][a-z0-9+.\-]*):/i) || [])[1].toLowerCase() + ':';
+    if (!_isLaunchProtocolAllowed(proto)) {
+      return { success: false, output: `protocolo no permitido: ${proto}` };
+    }
+    try {
+      await shell.openExternal(t);
+      return { success: true };
+    } catch (e) {
+      return { success: false, output: e.message };
+    }
+  }
+
+  // 3) Ruta de archivo (absoluta o relativa)
+  if (t.includes('\\') || t.includes('/')) {
+    const full = path.resolve(t);
+    if (!fs.existsSync(full)) return { success: false, output: `ruta no existe: ${t}` };
+    return await _openPathOrSpawn(full);
+  }
+
+  // 4) Nombre de ejecutable a secas (chrome.exe, notepad...)
+  const exe = _resolveExecutableName(t);
+  if (exe) return await _spawnDetached(exe);
+  // spawn directo (PATH/App Paths) — si falla, ShellExecute (App Paths del registro)
+  const direct = await _spawnDetached(t);
+  if (direct.success) return direct;
+  try {
+    const err = await shell.openPath(t);
+    return err ? { success: false, output: err } : { success: true };
+  } catch (e) {
+    return { success: false, output: e.message };
+  }
+});
+
+// ─── System Info Cache (collected once via temp PS file, refreshed by Node.js os module) ───
+let _systemInfoCache = null;
+
+function _collectStaticSystemInfo() {
+  return new Promise((resolve) => {
+    try {
+      const tmpFile = path.join(app.getPath('temp'), `jarvis_sysinfo_${Date.now()}.ps1`);
+      const script = `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$i=@{}
+$i.gpu=@(Get-CimInstance Win32_VideoController -EA 0|%{@{Name=($_.Name -replace '\\s+',' ').Trim();VRAM_GB=[Math]::Round($_.AdapterRAM/1GB,2)}})
+$i.drives=@([System.IO.DriveInfo]::GetDrives()|?{$_.IsReady -and $_.TotalSize -gt 0}|%{@{Drive=$_.Name.Substring(0,1);TotalGB=[Math]::Round($_.TotalSize/1GB,1);UsedGB=[Math]::Round(($_.TotalSize-$_.AvailableFreeSpace)/1GB,1);FreeGB=[Math]::Round($_.AvailableFreeSpace/1GB,1);PctFree=[Math]::Round($_.AvailableFreeSpace/$_.TotalSize*100,0)}})
+$i.os=(Get-CimInstance Win32_OperatingSystem -EA 0).Caption
+$i.boot=(Get-CimInstance Win32_OperatingSystem -EA 0).LastBootUpTime
+ConvertTo-Json $i -Compress -Depth 3`;
+      fs.writeFileSync(tmpFile, script, 'utf8');
+      execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', tmpFile],
+        { timeout: 10000, encoding: 'utf8' }, (err, stdout) => {
+        try { fs.unlinkSync(tmpFile); } catch {}
+        if (stdout) { try { resolve(JSON.parse(stdout.trim())); } catch { resolve(null); } }
+        else resolve(null);
+      });
+    } catch { resolve(null); }
+  });
+}
+
+ipcMain.handle('get-system-info', async () => {
+  if (!_systemInfoCache) _systemInfoCache = await _collectStaticSystemInfo();
+
+  const tm = os.totalmem(), fm = os.freemem(), cpus = os.cpus(), up = os.uptime();
+  const d = Math.floor(up / 86400), h = Math.floor((up % 86400) / 3600), m = Math.floor((up % 3600) / 60);
+  const si = _systemInfoCache || {};
+
+  return {
+    success: true,
+    os: {
+      caption: si.os || os.type(),
+      platform: os.platform(),
+      release: os.release(),
+      architecture: os.arch(),
+      hostname: os.hostname(),
+      user: os.userInfo().username,
+    },
+    cpu: { model: (cpus[0]?.model || 'Unknown').trim(), cores: cpus.length },
+    gpu: si.gpu || [],
+    ram: {
+      totalGB: +(tm / 1073741824).toFixed(2),
+      usedGB: +((tm - fm) / 1073741824).toFixed(2),
+      freeGB: +(fm / 1073741824).toFixed(2),
+      usedPct: Math.round(((tm - fm) / tm) * 100),
+    },
+    drives: si.drives || [],
+    uptime: { days: d, hours: h, minutes: m, totalSeconds: up },
+    bootTime: si.boot || null,
+  };
+});
 
 // Get current system date/time info
 ipcMain.handle('get-system-time', async () => {
@@ -914,11 +1098,30 @@ ipcMain.handle('memory-read', () => {
   };
 });
 
-// Guardar memoria (atómico: temp file + rename)
+// Guardar memoria (atómico: temp file + rename + merge para no perder claves de otros escritores)
 ipcMain.handle('memory-write', (event, data) => {
   try {
+    let merged = data;
+    if (fs.existsSync(MEMORY_FILE)) {
+      try {
+        const existing = JSON.parse(fs.readFileSync(MEMORY_FILE, 'utf8'));
+        if (existing && typeof existing === 'object' && !Array.isArray(existing)) {
+          merged = { ...existing, ...data };
+        }
+      } catch (e) {}
+    }
+    // Higiene: eliminar claves de runtime internas
+    if (merged && typeof merged === 'object') {
+      Object.keys(merged).forEach(k => { if (k.startsWith('_')) delete merged[k]; });
+    }
+    // Backup rotativo: siempre hay un punto de recuperación previo al último cambio
+    try {
+      if (fs.existsSync(MEMORY_FILE)) {
+        fs.copyFileSync(MEMORY_FILE, MEMORY_FILE + '.bak');
+      }
+    } catch (e) {}
     const tmpFile = MEMORY_FILE + '.tmp';
-    fs.writeFileSync(tmpFile, JSON.stringify(data, null, 2), 'utf8');
+    fs.writeFileSync(tmpFile, JSON.stringify(merged, null, 2), 'utf8');
     fs.renameSync(tmpFile, MEMORY_FILE);
     return { success: true };
   } catch(e) {
@@ -981,7 +1184,7 @@ ipcMain.on('log-to-terminal', (event, type, message) => {
   } else if (type === 'warn') {
     console.warn(`\x1b[33m[${timestamp}] [WRN] ${cleanMsg}\x1b[0m`);
   } else if (type === 'conv_user') {
-    console.log(`\n\x1b[36m\x1b[1m  TONY ›\x1b[0m \x1b[37m${cleanMsg}\x1b[0m`);
+    console.log(`\n\x1b[36m\x1b[1m  USUARIO ›\x1b[0m \x1b[37m${cleanMsg}\x1b[0m`);
   } else if (type === 'conv_think') {
     console.log(`\x1b[2m  JARVIS (pensando) › ${cleanMsg}\x1b[0m`);
   } else if (type === 'conv_response') {
@@ -1110,8 +1313,8 @@ ipcMain.handle('gemini-text-chat', async (event, { messages, systemInstruction }
   return new Promise((resolve) => {
     const model = 'gemini-2.5-flash';
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
-    const body = { contents: messages };
-    if (systemInstruction) {
+    const body = { contents: messages, generationConfig: { thinkingConfig: { thinkingBudget: 0 }, temperature: 0.3 } };
+    if (systemInstruction && systemInstruction.trim()) {
       body.systemInstruction = { parts: [{ text: systemInstruction }] };
     }
     const bodyStr = JSON.stringify(body);
@@ -1125,13 +1328,19 @@ ipcMain.handle('gemini-text-chat', async (event, { messages, systemInstruction }
       res.on('end', () => {
         try {
           const parsed = JSON.parse(data);
-          const text = parsed?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-          if (text) {
-            resolve({ success: true, response: text });
+          if (parsed?.error) {
+            resolve({ success: false, error: `API error: ${parsed.error.message || JSON.stringify(parsed.error)}` });
+            return;
+          }
+          const parts = parsed?.candidates?.[0]?.content?.parts || [];
+          let text = '';
+          for (const p of parts) {
+            if (typeof p?.text === 'string' && !p?.thought) text += p.text;
+          }
+          if (text.trim()) {
+            resolve({ success: true, response: text.trim() });
           } else if (parsed?.promptFeedback?.blockReason) {
             resolve({ success: false, error: `Bloqueado: ${parsed.promptFeedback.blockReason}` });
-          } else if (parsed?.error) {
-            resolve({ success: false, error: parsed.error.message || 'API error' });
           } else {
             resolve({ success: false, error: 'Respuesta vacía del modelo' });
           }
@@ -1140,10 +1349,82 @@ ipcMain.handle('gemini-text-chat', async (event, { messages, systemInstruction }
         }
       });
     });
+    req.setTimeout(120000, () => {
+      req.destroy();
+      resolve({ success: false, error: 'Timeout: la API de Gemini no respondió en 120s' });
+    });
     req.on('error', (e) => {
+      if (e.message === 'socket hang up' || e.message.includes('timeout') || e.message.includes('destroyed')) return;
       resolve({ success: false, error: `Error de conexión: ${e.message}` });
     });
     req.write(bodyStr);
+    req.end();
+  });
+});
+
+// TTS con voz de Gemini (misma voz prebuilt que el WebSocket) — devuelve audio PCM
+ipcMain.handle('gemini-tts', async (event, { text, voice }) => {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey || apiKey.trim().length < 10) {
+    return { success: false, error: 'API_KEY_NOT_CONFIGURED' };
+  }
+  if (!text || !text.trim()) {
+    return { success: false, error: 'EMPTY_TEXT' };
+  }
+  return new Promise((resolve) => {
+    const model = 'gemini-2.5-flash-preview-tts';
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+    const body = {
+      contents: [{ role: 'user', parts: [{ text }] }],
+      generationConfig: {
+        responseModalities: ['AUDIO'],
+        speechConfig: {
+          voiceConfig: { prebuiltVoiceConfig: { voiceName: voice || 'Fenrir' } }
+        },
+        temperature: 0.4
+      }
+    };
+    const options = {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': apiKey },
+    };
+    const req = https.request(url, options, (res) => {
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed?.error) {
+            resolve({ success: false, error: `API error: ${parsed.error.message || JSON.stringify(parsed.error)}` });
+            return;
+          }
+          const parts = parsed?.candidates?.[0]?.content?.parts || [];
+          const audioPart = parts.find(p => p?.inlineData?.data);
+          if (audioPart?.inlineData?.data) {
+            resolve({
+              success: true,
+              mimeType: audioPart.inlineData.mimeType || 'audio/pcm',
+              audioBase64: audioPart.inlineData.data
+            });
+          } else {
+            const textPart = parts.find(p => p?.text);
+            if (textPart?.text) resolve({ success: false, error: 'EL MODELO_RESPONDIO_TEXTO_NO_AUDIO' });
+            else resolve({ success: false, error: 'Sin audio en la respuesta' });
+          }
+        } catch (e) {
+          resolve({ success: false, error: `Error parseando respuesta: ${e.message}` });
+        }
+      });
+    });
+    req.setTimeout(60000, () => {
+      req.destroy();
+      resolve({ success: false, error: 'Timeout: TTS no respondió en 60s' });
+    });
+    req.on('error', (e) => {
+      if (e.message === 'socket hang up' || e.message.includes('timeout') || e.message.includes('destroyed')) return;
+      resolve({ success: false, error: `Error de conexión: ${e.message}` });
+    });
+    req.write(JSON.stringify(body));
     req.end();
   });
 });
@@ -1206,9 +1487,12 @@ ipcMain.handle('ws-connect', async (event) => {
 
     ws.on('close', (code, reason) => {
       if (win && !win.isDestroyed()) {
+        const reasonText = Buffer.isBuffer(reason)
+          ? reason.toString('utf8')
+          : String(reason || '');
         win.webContents.send('ws-status', {
           type: 'close',
-          event: { code: code, reason: reason || '', wasClean: code === 1000, type: 'close' }
+          event: { code: code, reason: reasonText, wasClean: code === 1000, type: 'close' }
         });
       }
       if (geminiWs === ws) geminiWs = null;

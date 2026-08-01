@@ -1,11 +1,15 @@
 {
   "name": "jarvis",
-  "version": "2.3.0",
+  "version": "3.6.0",
   "description": "JARVIS - AI Personal Assistant for Windows with voice, automation, and deep system integration",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder --windows"
+    "build": "electron-builder --windows",
+    "build:publish": "electron-builder --windows --publish always",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "postinstall": "electron-builder install-app-deps"
   },
   "author": {
     "name": "echamo89-wq"
@@ -14,12 +18,15 @@
     "type": "git",
     "url": "https://github.com/echamo89-wq/Jarvis"
   },
-  "license": "MIT",
+  "license": "GPL-3.0-only",
   "devDependencies": {
     "electron": "^30.0.0",
-    "electron-builder": "^24.13.3"
+    "electron-builder": "^24.13.3",
+    "vitest": "^4.1.10"
   },
   "dependencies": {
+    "dotenv": "^16.4.7",
+    "electron-updater": "^6.3.9",
     "ws": "^8.21.0"
   },
   "build": {
@@ -29,32 +36,65 @@
       "output": "dist"
     },
     "files": [
-      "**/*",
-      "!dist",
-      "!server/node_modules",
-      "!server/data/jarvis.db",
-      "!.git",
-      "!.env",
-      "!.env.example",
-      "!server/.env",
-      "!server/.env.example"
+      "main.js",
+      "preload.js",
+      "renderer.html",
+      "splash.html",
+      "package.json",
+      "main/**/*",
+      "js/**/*",
+      "css/**/*",
+      "assets/**/*",
+      "config/**/*",
+      "build/icon.ico",
+      "build/icon.png",
+      "build/installer.nsh",
+      "node_modules/**/*",
+      "!node_modules/.cache",
+      "!**/*.map",
+      "!**/*.ts",
+      "!**/test/**",
+      "!**/tests/**",
+      "!**/.git/**"
     ],
     "extraMetadata": {
       "main": "main.js"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "echamo89-wq",
+      "repo": "Jarvis",
+      "releaseType": "release"
     },
     "win": {
       "target": [
         "nsis"
       ],
-      "requestedExecutionLevel": "asInvoker"
+      "icon": "build/icon.ico",
+      "requestedExecutionLevel": "asInvoker",
+      "signAndEditExecutable": false,
+      "signDlls": false
     },
     "nsis": {
-      "oneClick": true,
-      "allowToChangeInstallationDirectory": false,
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerSidebar": null,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Jarvis",
-      "runAfterFinish": true
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "installerLanguages": [
+        "en_US",
+        "es_ES"
+      ],
+      "include": "build/installer.nsh",
+      "license": "LICENSE.txt"
     }
   }
 }
+

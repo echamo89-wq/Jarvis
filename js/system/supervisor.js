@@ -205,7 +205,7 @@
         config: {
           voice: localStorage.getItem('jarvis_voice') || 'Fenrir',
           lang: localStorage.getItem('jarvis_lang') || 'es',
-          personality: localStorage.getItem('jarvis_personality') || 'professional',
+          personality: localStorage.getItem('jarvis_personality') || 'companion',
           vadThreshold: localStorage.getItem('jarvis_vad_threshold') || '300',
           theme: localStorage.getItem('jarvis_theme') || 'dark'
         }

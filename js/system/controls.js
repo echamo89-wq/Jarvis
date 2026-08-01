@@ -1,47 +1,28 @@
 import { store } from '../state/store.js';
-
 import { createLogger } from '../utils/logger.js';
 const _log = createLogger('CONTROLS');
 
 export async function changeSystemVolume(percent) {
   const pct = Math.max(0, Math.min(100, Math.round(percent)));
-  const scalar = (pct / 100).toFixed(2);
 
-  async function tryMethod1() {
-    return await window.electronAPI.runPowerShell(`
-      $ErrorActionPreference = 'Stop';
-      try {
-        $code = '
-        using System;
-        using System.Runtime.InteropServices;
-        [Guid("5CDF2C82-841E-4546-9722-0CF74078229A"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-        interface IAudioEndpointVolume { int RegisterControlChangeNotify(IntPtr p); int UnregisterControlChangeNotify(IntPtr p); int GetChannelCount(out uint c); int SetMasterVolumeLevelScalar(float l, ref Guid g); int GetMasterVolumeLevel(out float l); int GetMasterVolumeLevelScalar(out float l); }
-        [Guid("7991E194-C085-40E5-882D-2450202D303D"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-        interface IMMDeviceEnumerator { int EnumAudioEndpoints(int f, int m, out IntPtr d); int GetDefaultAudioEndpoint(int f, int r, out IMMDevice d); }
-        [Guid("D66606E7-2774-40F5-857A-CE354C1474C5"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-        interface IMMDevice { int Activate(ref Guid id, int cls, IntPtr p, [MarshalAs(UnmanagedType.IUnknown)] out object o); }
-        [ComImport, Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")] class MMDeviceEnumeratorCom {}
-        public class Vol { public static void Set(float v) {
-          var e = (IMMDeviceEnumerator)(new MMDeviceEnumeratorCom()); IMMDevice d = null; e.GetDefaultAudioEndpoint(0, 0, out d);
-          object o = null; var g = new Guid("5CDF2C82-841E-4546-9722-0CF74078229A");
-          d.Activate(ref g, 23, IntPtr.Zero, out o); ((IAudioEndpointVolume)o).SetMasterVolumeLevelScalar(v, ref g);
-        } }';
-        Add-Type -TypeDefinition $code; [Vol]::Set(${scalar});
-        Write-Output "Volumen establecido al ${pct}%";
-      } catch { throw $_; }
-    `);
-  }
+  let currentVol = null;
+  try {
+    const current = await window.electronAPI.getVolume();
+    if (current.success) currentVol = current.volume;
+  } catch (e) {}
 
-  async function tryMethod2() {
-    return await window.electronAPI.runPowerShell(`
-      $ErrorActionPreference = 'Stop';
-      try {
-        $obj = New-Object -ComObject WScript.Shell;
-        for ($i = 0; $i -lt 100; $i++) { $obj.SendKeys([char]174) };
-        for ($i = 0; $i -lt ${pct}; $i++) { $obj.SendKeys([char]175) };
-        Write-Output "Volumen establecido al ${pct}% (método teclado)";
-      } catch { throw $_; }
-    `);
+  if (currentVol !== null) {
+    const diff = Math.abs(currentVol - pct);
+    if (diff <= 3 && pct !== 0 && pct !== 100) {
+      return {
+        success: true,
+        output: `El volumen ya está al ${currentVol}%. ${
+          pct > currentVol
+            ? `Solo ${diff}% por debajo de lo solicitado (${pct}%).`
+            : `Solo ${diff}% por encima de lo solicitado (${pct}%).`
+        } No es necesario ajustar.`
+      };
+    }
   }
 
   try {
@@ -51,43 +32,63 @@ export async function changeSystemVolume(percent) {
     if (valLabel) valLabel.innerText = `${pct}%`;
   } catch (e) {}
 
-  let r = await tryMethod1();
+  const r = await window.electronAPI.setVolume(pct);
   if (!r.success) {
-    _log('warn', `Volume method 1 failed: ${r.output}`);
-    r = await tryMethod2();
+    _log('error', `Volume setting failed`);
+    return {
+      success: false,
+      output: `Hay un inconveniente al ajustar el volumen. Verifica que los altavoces o auriculares estén conectados correctamente.`
+    };
   }
-  if (!r.success) _log('error', `Volume failed: ${r.output}`);
-  else store.set('lastVolume', pct);
-  return r;
+
+  store.set('lastVolume', pct);
+  const msg = currentVol !== null
+    ? `Volumen cambiado de ${currentVol}% a ${pct}%.`
+    : `Volumen cambiado a ${pct}%.`;
+  return { success: true, output: msg };
 }
 
 export async function changeSystemBrightness(percent) {
   const pct = Math.max(0, Math.min(100, Math.round(percent)));
 
-  async function tryMethod1() {
-    return await window.electronAPI.runPowerShell(`
-      $ErrorActionPreference = 'Stop';
-      try {
-        $monitors = Get-CimInstance -Namespace root/WMI -ClassName WmiMonitorBrightnessMethods;
-        if ($monitors) { foreach ($m in $monitors) { $m.WmiSetBrightness(0, ${pct}) }; Write-Output "Brillo establecido al ${pct}%"; }
-        else { throw "No se encontró monitor WMI"; }
-      } catch { throw $_; }
-    `);
+  let currentBright = null;
+  try {
+    const current = await window.electronAPI.getBrightness();
+    if (current.success) currentBright = current.brightness;
+  } catch (e) {}
+
+  if (currentBright !== null) {
+    const diff = Math.abs(currentBright - pct);
+    if (diff <= 3 && pct !== 0 && pct !== 100) {
+      return {
+        success: true,
+        output: `El brillo ya está al ${currentBright}%. ${
+          pct > currentBright
+            ? `Solo ${diff}% por debajo de lo solicitado (${pct}%).`
+            : `Solo ${diff}% por encima de lo solicitado (${pct}%).`
+        } No es necesario ajustar.`
+      };
+    }
   }
 
-  async function tryMethod2() {
-    return await window.electronAPI.runPowerShell(`
-      $ErrorActionPreference = 'Stop';
-      try {
-        $monitors = Get-WmiObject -Namespace root/WMI -Class WmiMonitorBrightnessMethods;
-        if ($monitors) { foreach ($m in $monitors) { $m.WmiSetBrightness(0, ${pct}) }; Write-Output "Brillo establecido al ${pct}%"; }
-        else { throw "No se encontró monitor WMI (método 2)"; }
-      } catch { throw $_; }
-    `);
+  try {
+    const slider = document.getElementById('bright-slider');
+    const valLabel = document.getElementById('bright-value');
+    if (slider) slider.value = pct;
+    if (valLabel) valLabel.innerText = `${pct}%`;
+  } catch (e) {}
+
+  const r = await window.electronAPI.setBrightness(pct);
+  if (!r.success) {
+    _log('error', `Brightness setting failed`);
+    return {
+      success: false,
+      output: `Hay un inconveniente al ajustar el brillo. Es posible que este monitor no tenga control de brillo por software.`
+    };
   }
 
-  let r = await tryMethod1();
-  if (!r.success) { _log('warn', `Brightness method 1 failed: ${r.output}`); r = await tryMethod2(); }
-  if (!r.success) _log('error', `Brightness failed: ${r.output}`);
-  return r;
+  const msg = currentBright !== null
+    ? `Brillo cambiado de ${currentBright}% a ${pct}%.`
+    : `Brillo cambiado a ${pct}%.`;
+  return { success: true, output: msg };
 }

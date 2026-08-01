@@ -1,9 +1,10 @@
+import { createLogger as createKernelLogger } from '../kernel/logger.js';
+
 export function createLogger(tag) {
+  const kLogger = createKernelLogger(tag);
   return function _log(type, msg) {
-    const full = `[${tag}] ${msg}`;
-    if (window.electronAPI?.logToTerminal) window.electronAPI.logToTerminal(type, full);
-    if (type === 'error') console.error(full);
-    else if (type === 'warn') console.warn(full);
-    else console.log(full);
+    if (type === 'error') kLogger.error(msg);
+    else if (type === 'warn') kLogger.warn(msg);
+    else kLogger.info(msg);
   };
 }

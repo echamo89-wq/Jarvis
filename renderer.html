@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' http://localhost:3001 http://localhost:5678 http://localhost:11434 https://generativelanguage.googleapis.com wss://generativelanguage.googleapis.com; img-src 'self' data: https:; media-src 'self' blob:; frame-src 'self' http://localhost:3001 http://localhost:5678; form-action 'self'; base-uri 'self'; object-src 'none';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' http://localhost:3001 http://localhost:5678 http://localhost:11434 https://generativelanguage.googleapis.com wss://generativelanguage.googleapis.com https://*.googleapis.com https://api.openweathermap.org; img-src 'self' data: https:; media-src 'self' blob:; frame-src 'self' http://localhost:3001 http://localhost:5678; form-action 'self'; base-uri 'self'; object-src 'none';">
   <title>JARVIS JS</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Orbitron:wght@400;600;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
@@ -56,7 +56,7 @@
         <!-- Social Media Buttons -->
         <div style="display:flex; justify-content:center; gap:10px; margin: 12px 0 18px;">
           <a href="https://www.youtube.com/@JarvisJSS" target="_blank" class="auth-social-btn" style="background:rgba(255,0,0,0.12); border-color:rgba(255,0,0,0.3); color:#ff4444;">▶ YouTube</a>
-          <a href="https://www.instagram.com/jarvis_js2006" target="_blank" class="auth-social-btn" style="background:rgba(225,48,108,0.12); border-color:rgba(225,48,108,0.3); color:#ff2d79;">📷 Instagram</a>
+          <a href="https://www.instagram.com/jarvis_js_js/" target="_blank" class="auth-social-btn" style="background:rgba(225,48,108,0.12); border-color:rgba(225,48,108,0.3); color:#ff2d79;">📷 Instagram</a>
           <a href="https://www.tiktok.com/@jarvis_jjs" target="_blank" class="auth-social-btn" style="background:rgba(255,255,255,0.06); border-color:rgba(255,255,255,0.15); color:#fff;">🎵 TikTok</a>
         </div>
         <p style="font-size:0.6rem; color:var(--text-dim); text-align:center; margin-bottom:18px;">Seguinos en redes para novedades y actualizaciones</p>
@@ -140,6 +140,16 @@
             <option value="Athena">Athena — Voz femenina clara</option>
           </select>
         </div>
+
+        <div class="auth-field" style="margin-top:12px; text-align:left; width:100%;">
+          <label style="font-size:0.65rem; color:rgba(255,255,255,0.5); letter-spacing:1px; text-transform:uppercase; display:block; margin-bottom:6px;">Hardware de audio</label>
+          <div id="auth-mic-test-container" style="display:flex; align-items:center; gap:10px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06); padding:8px 12px; border-radius:8px;">
+            <div id="auth-mic-status-dot" style="width:10px; height:10px; border-radius:50%; background:#ffb86c; box-shadow: 0 0 8px rgba(255,184,108,0.5); transition: all 0.3s ease;"></div>
+            <span id="auth-mic-status-text" style="font-size:0.7rem; color:rgba(255,255,255,0.6); font-family:monospace;">VERIFICANDO MICRÓFONO...</span>
+          </div>
+          <p id="auth-mic-warning" style="font-size:0.6rem; color:#ffb86c; margin-top:5px; display:none; line-height:1.3;">⚠️ No se detectó micrófono. JARVIS operará en modo "Solo Texto" por defecto.</p>
+        </div>
+
 
         <button class="auth-btn" id="auth-voice-btn" style="box-shadow: 0 0 10px rgba(0,191,255,0.15); margin-top:16px;">Continuar</button>
         <div class="auth-nav-row" style="margin-top:8px;">
@@ -256,7 +266,10 @@
           </label>
         </div>
 
-        <button class="auth-btn" id="auth-permissions-btn" style="box-shadow: 0 0 10px rgba(0,191,255,0.15);">Continuar</button>
+        <div style="display:flex; gap:10px; margin-top:16px;">
+          <button class="auth-btn secondary" id="auth-perms-deny-all" style="flex:1; background:rgba(255,69,58,0.1); border-color:rgba(255,69,58,0.3); color:#ff453a; font-size:0.75rem; margin:0;">Denegar Todo</button>
+          <button class="auth-btn" id="auth-perms-accept-all" style="flex:1.5; box-shadow: 0 0 10px rgba(0,191,255,0.15); font-size:0.75rem; margin:0;">Aceptar y Otorgar</button>
+        </div>
         <div class="auth-nav-row" style="margin-top:8px;">
           <button class="auth-back-btn" data-target="personality">← Atrás</button>
         </div>
@@ -295,69 +308,14 @@
     </div>
   </div>
 
-  <!-- Final confirmation dialog — fuera del auth-modal para que position:fixed cubra toda la ventana -->
-  <div class="auth-confirm-overlay" id="auth-confirm-overlay" style="display:none;">
-    <div class="auth-confirm-card" id="auth-confirm-card">
-      <div class="auth-confirm-header">
-        <div class="auth-confirm-icon">🔒</div>
-        <div>
-          <div class="auth-confirm-label">CONFIRMAR CONFIGURACIÓN</div>
-          <div class="auth-confirm-sub">Revisión final de permisos</div>
-        </div>
-      </div>
-
-      <div class="auth-confirm-body">
-        <p class="auth-confirm-intro">JARVIS va a operar con los siguientes permisos. Revisalos con atención antes de continuar:</p>
-
-        <div class="auth-confirm-perms" id="auth-confirm-perms">
-          <div class="auth-confirm-perm" data-cat="system">
-            <span class="auth-confirm-perm-icon">🚀</span>
-            <div class="auth-confirm-perm-info">
-              <span class="auth-confirm-perm-name">SISTEMA</span>
-              <span class="auth-confirm-perm-desc">Control de apps, volumen, brillo, notificaciones</span>
-            </div>
-          </div>
-          <div class="auth-confirm-perm" data-cat="files">
-            <span class="auth-confirm-perm-icon">📁</span>
-            <div class="auth-confirm-perm-info">
-              <span class="auth-confirm-perm-name">ARCHIVOS</span>
-              <span class="auth-confirm-perm-desc">Leer, escribir, buscar archivos en tu equipo</span>
-            </div>
-          </div>
-          <div class="auth-confirm-perm" data-cat="screen">
-            <span class="auth-confirm-perm-icon">🖥️</span>
-            <div class="auth-confirm-perm-info">
-              <span class="auth-confirm-perm-name">PANTALLA</span>
-              <span class="auth-confirm-perm-desc">Capturas, teclado, portapapeles</span>
-            </div>
-          </div>
-          <div class="auth-confirm-perm" data-cat="integrations">
-            <span class="auth-confirm-perm-icon">🔗</span>
-            <div class="auth-confirm-perm-info">
-              <span class="auth-confirm-perm-name">INTEGRACIONES</span>
-              <span class="auth-confirm-perm-desc">Google, Spotify, GitHub, Telegram, Discord</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="auth-confirm-warning">
-          <span style="font-size:14px; line-height:1.4;">🛡️</span>
-          <span>Al confirmar, JARVIS podrá ejecutar comandos del sistema, acceder a tus archivos, capturar la pantalla y usar integraciones de terceros en tu nombre. Estos permisos son necesarios para que JARVIS funcione correctamente. Podés revocarlos en cualquier momento desde <strong>Configuración &gt; Permisos</strong>.</span>
-        </div>
-      </div>
-
-      <div class="auth-confirm-footer">
-        <button class="auth-confirm-btn secondary" id="auth-confirm-cancel">Cancelar</button>
-        <button class="auth-confirm-btn primary" id="auth-confirm-accept">Confirmar e Iniciar JARVIS</button>
-      </div>
-    </div>
-  </div>
-
 
   <!-- MAIN LAYOUT -->
   <div class="app-layout">
     <header class="top-bar">
       <div class="top-bar-left">
+        <!-- Botón desplegable de barra/columna lateral y tuerca de configuración -->
+        <button id="sidebar-toggle-btn" class="top-btn menu-btn" title="Menú lateral">☰</button>
+        <button id="config-trigger" class="top-btn gear-btn" title="Configuracion">⚙</button>
         <span class="app-title">JARVIS</span>
         <span class="top-bar-separator"></span>
         <span class="user-badge" id="user-badge" title="Haz clic para editar tu perfil"></span>
@@ -367,26 +325,83 @@
       </div>
       <div class="top-bar-center"></div>
       <div class="top-bar-right">
-        <button id="docs-btn" class="top-btn" title="Investigaciones">&#128196;</button>
-        <button id="new-chat-btn" class="top-btn" title="Nuevo chat">+</button>
-        <button id="integrations-btn" class="top-btn" title="Integraciones">&#9678;</button>
-        <button id="export-chat-btn" class="top-btn" title="Exportar conversacion">&#8600;</button>
-        <button id="config-trigger" class="top-btn" title="Configuracion">&#9881;</button>
-        <button id="reconnect-btn" class="top-btn" title="Reconectar">&#8635;</button>
+        <!-- Los botones principales ahora se muestran en la columna lateral desplegable, el top-bar queda limpio -->
         <button id="minimize-btn" class="window-control-btn" title="Minimizar">_</button>
         <button id="close-btn" class="window-control-btn" title="Cerrar">X</button>
       </div>
     </header>
 
-
-
     <div class="conn-bar" id="conn-bar" style="display:none">Conexion perdida...</div>
     <div id="meeting-bar" class="meeting-bar" style="display:none">🔇 MODO REUNIÓN — Jarvis en silencio. Decí "Jarvis, ya salí de la reunión" para reactivar.</div>
 
     <div class="app-body-container">
+      <!-- SIDEBAR DRAWER (Columna Desplegable Lateral) -->
+      <div class="sidebar-drawer" id="sidebar-drawer">
+        <div class="drawer-header">
+          <span>MENÚ TÁCTICO</span>
+          <button id="drawer-close-btn" class="drawer-x-btn">✕</button>
+        </div>
+        <div class="drawer-buttons-list">
+          <button id="new-chat-btn" class="drawer-btn" title="Nuevo chat">
+            <span class="btn-icon">＋</span>
+            <span class="btn-text">NUEVO CHAT</span>
+          </button>
+          <button id="plan-btn" class="drawer-btn" title="Plan">
+            <span class="btn-icon">📋</span>
+            <span class="btn-text">PLAN COGNITIVO</span>
+          </button>
+          <button id="integrations-btn" class="drawer-btn" title="Integraciones">
+            <span class="btn-icon">🔌</span>
+            <span class="btn-text">INTEGRACIONES</span>
+          </button>
+          <button id="reconnect-btn" class="drawer-btn" title="Reconectar">
+            <span class="btn-icon">↻</span>
+            <span class="btn-text">RECONECTAR WS</span>
+          </button>
+        </div>
+      </div>
+
       <div class="app-main-view">
 
-        <!-- REACTOR: logo animado de JARVIS (focus-reactor vectorial de alta tecnología) -->
+        <!-- PROGRESS: indicador de herramientas en ejecucion (ARRIBA del reactor) -->
+        <div id="progress-area" class="progress-area" style="display:none">
+          <div id="progress-steps" class="prog-steps"></div>
+          <div id="progress-pct" class="prog-pct" style="display:none">
+            <div class="prog-pct-bar">
+              <div id="prog-pct-fill" class="prog-pct-fill"></div>
+            </div>
+            <span id="prog-pct-text" class="prog-pct-label">0%</span>
+          </div>
+        </div>
+
+        <!-- YOUTUBE DOWNLOAD PROGRESS (ARRIBA del reactor) -->
+        <div id="yt-prog-area" class="yt-progress-area" style="display:none">
+          <div class="yt-prog-header">
+            <span id="yt-prog-title" class="yt-prog-title">Descargando...</span>
+            <button id="yt-prog-close" class="yt-prog-close">X</button>
+          </div>
+          <div class="yt-prog-bar">
+            <div id="yt-prog-fill" class="yt-prog-fill"></div>
+          </div>
+          <div class="yt-prog-details">
+            <span id="yt-prog-pct" class="yt-prog-pct">0%</span>
+            <span id="yt-prog-speed" class="yt-prog-speed"></span>
+            <span id="yt-prog-eta" class="yt-prog-eta"></span>
+          </div>
+          <div id="yt-prog-status" class="yt-prog-status"></div>
+        </div>
+
+        <!-- CLIMA: panel de pronostico visual (ARRIBA del reactor) -->
+        <div id="weather-panel" class="weather-panel" style="display:none">
+          <div class="wp-header">
+            <span id="wp-city" class="wp-city">—</span>
+            <span id="wp-current" class="wp-current"></span>
+            <button id="wp-close" class="wp-close">X</button>
+          </div>
+          <div id="wp-cards" class="wp-cards"></div>
+        </div>
+
+        <!-- REACTOR: logo animado de JARVIS (CENTRO) -->
         <div class="reactor-viewport-area">
           <div id="focus-reactor-el" class="focus-reactor idle">
             
@@ -446,167 +461,147 @@
             </div>
 
           </div>
-        </div>
 
-        <!-- RECORDATORIOS: indicador campana junto al reactor -->
-        <div id="reminders-panel" style="display:none; position:absolute; top:8px; right:8px; z-index:100;">
-          <button id="reminders-trigger" title="Recordatorios" style="
-            background: rgba(0,0,0,0.4);
-            border: 1px solid rgba(99,179,237,0.25);
-            color: #7ecfff;
-            border-radius: 50%;
-            width: 32px; height: 32px;
-            font-size: 1rem;
-            cursor: pointer;
-            display: flex; align-items: center; justify-content: center;
-            position: relative;
-            transition: all 0.2s;
-          ">🔔<span id="reminders-count" style="
-            display: none;
-            position: absolute;
-            top: -4px; right: -4px;
-            background: #ff6b6b;
-            color: #fff;
-            font-size: 0.55rem;
-            font-weight: 700;
-            border-radius: 50%;
-            width: 14px; height: 14px;
-            line-height: 14px;
-            text-align: center;
-          ">0</span></button>
-          <!-- Dropdown de recordatorios -->
-          <div id="reminders-dropdown" style="
-            display: none;
-            position: absolute;
-            top: 38px; right: 0;
-            width: 260px;
-            background: rgba(10,14,30,0.97);
-            border: 1px solid rgba(99,179,237,0.2);
-            border-radius: 10px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.6);
-            padding: 12px;
-            max-height: 300px;
-            overflow-y: auto;
-            z-index: 200;
-          ">
-            <div style="font-size:0.65rem;color:var(--text-dim);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;font-weight:600;">⏰ Mis Recordatorios</div>
-            <div id="reminders-list"></div>
-          </div>
-        </div>
-
-        <!-- PROGRESS: indicador de herramientas en ejecucion -->
-        <div id="progress-area" class="progress-area" style="display:none">
-          <div id="progress-steps" class="prog-steps"></div>
-          <div id="progress-pct" class="prog-pct" style="display:none">
-            <div class="prog-pct-bar">
-              <div id="prog-pct-fill" class="prog-pct-fill"></div>
+          <!-- RECORDATORIOS: indicador campana junto al reactor -->
+          <div id="reminders-panel" style="display:none; position:absolute; top:8px; right:8px; z-index:100;">
+            <button id="reminders-trigger" title="Recordatorios" style="
+              background: rgba(0,0,0,0.4);
+              border: 1px solid rgba(99,179,237,0.25);
+              color: #7ecfff;
+              border-radius: 50%;
+              width: 32px; height: 32px;
+              font-size: 1rem;
+              cursor: pointer;
+              display: flex; align-items: center; justify-content: center;
+              position: relative;
+              transition: all 0.2s;
+            ">🔔<span id="reminders-count" style="
+              display: none;
+              position: absolute;
+              top: -4px; right: -4px;
+              background: #ff6b6b;
+              color: #fff;
+              font-size: 0.55rem;
+              font-weight: 700;
+              border-radius: 50%;
+              width: 14px; height: 14px;
+              line-height: 14px;
+              text-align: center;
+            ">0</span></button>
+            <!-- Dropdown de recordatorios -->
+            <div id="reminders-dropdown" style="
+              display: none;
+              position: absolute;
+              top: 38px; right: 0;
+              width: 260px;
+              background: rgba(10,14,30,0.97);
+              border: 1px solid rgba(99,179,237,0.2);
+              border-radius: 10px;
+              box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+              padding: 12px;
+              max-height: 300px;
+              overflow-y: auto;
+              z-index: 200;
+            ">
+              <div style="font-size:0.65rem;color:var(--text-dim);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;font-weight:600;">⏰ Mis Recordatorios</div>
+              <div id="reminders-list"></div>
             </div>
-            <span id="prog-pct-text" class="prog-pct-label">0%</span>
           </div>
         </div>
 
-        <!-- YOUTUBE DOWNLOAD PROGRESS -->
-        <div id="yt-prog-area" class="yt-progress-area" style="display:none">
-          <div class="yt-prog-header">
-            <span id="yt-prog-title" class="yt-prog-title">Descargando...</span>
-            <button id="yt-prog-close" class="yt-prog-close">X</button>
-          </div>
-          <div class="yt-prog-bar">
-            <div id="yt-prog-fill" class="yt-prog-fill"></div>
-          </div>
-          <div class="yt-prog-details">
-            <span id="yt-prog-pct" class="yt-prog-pct">0%</span>
-            <span id="yt-prog-speed" class="yt-prog-speed"></span>
-            <span id="yt-prog-eta" class="yt-prog-eta"></span>
-          </div>
-          <div id="yt-prog-status" class="yt-prog-status"></div>
-        </div>
-
-        <!-- CLIMA: panel de pronostico visual -->
-        <div id="weather-panel" class="weather-panel" style="display:none">
-          <div class="wp-header">
-            <span id="wp-city" class="wp-city">—</span>
-            <span id="wp-current" class="wp-current"></span>
-            <button id="wp-close" class="wp-close">X</button>
-          </div>
-          <div id="wp-cards" class="wp-cards"></div>
-        </div>
-
-        <!-- PANEL DE INFORMACION: informes, noticias, contenido enriquecido -->
-        <div id="info-panel" class="info-panel" style="display:none">
-          <div class="ip-header">
-            <span id="ip-icon" class="ip-icon">📄</span>
-            <span id="ip-title" class="ip-title">INFORME</span>
-            <span id="ip-source" class="ip-source"></span>
-            <button id="ip-close" class="ip-close">X</button>
-          </div>
-          <div id="ip-body" class="ip-body">
-            <div id="ip-subtitle" class="ip-subtitle"></div>
-            <div id="ip-summary" class="ip-summary"></div>
-            <div id="ip-points" class="ip-points"></div>
-            <div id="ip-details" class="ip-details"></div>
-            <div id="ip-sources" class="ip-sources" style="display:none"></div>
-          </div>
-          <div id="ip-footer" class="ip-footer">
-            <button id="ip-download-btn" class="ip-action">📥 Descargar</button>
-            <button id="ip-copy-btn" class="ip-action">📋 Copiar</button>
-            <button id="ip-view-btn" class="ip-action">👁 Ver completo</button>
-          </div>
-        </div>
-
-        <!-- MENSAJE: burbuja premium de conversación unificada (HUD de una sola burbuja) -->
+        <!-- MENSAJE: caja de respuesta de JARVIS (DEBAJO del reactor) -->
         <div id="message-area" class="message-area">
           <div class="msg-glow"></div>
           <div class="msg-inner">
             <!-- Sección del Usuario -->
             <div id="msg-user-part" class="msg-part user-part" style="display: none;">
-              <span class="msg-label user-label">▶ TÚ</span>
+              <div class="msg-header">
+                <span class="msg-avatar user-avatar">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                </span>
+                <span class="msg-label user-label">TÚ</span>
+              </div>
               <p id="msg-user-text" class="msg-text user-text"></p>
             </div>
             <!-- Sección de Jarvis -->
             <div id="msg-jarvis-part" class="msg-part jarvis-part" style="display: none;">
-              <span class="msg-label jarvis-label">JARVIS</span>
+              <div class="msg-header">
+                <span class="msg-avatar jarvis-avatar">
+                  <span class="jarvis-pulse-dot"></span>
+                </span>
+                <span class="msg-label jarvis-label">JARVIS AI</span>
+                <span class="msg-status-pill">ASSISTANT</span>
+              </div>
               <p id="msg-jarvis-text" class="msg-text jarvis-text"></p>
+              <!-- Links de búsqueda web integrados inline -->
+              <div class="msg-web-links" id="msg-web-links" style="display:none;"></div>
               <div class="msg-buttons" id="msg-buttons">
-                <button id="msg-cancel-btn" class="msg-cancel-btn" title="Cancelar respuesta" style="display:none">✕</button>
-        </div>
-        <!-- FIN message-area -->
+                <button id="msg-cancel-btn" class="msg-cancel-btn" title="Cancelar respuesta" style="display:none">✕ Cancelar</button>
+              </div>
             </div>
             <!-- Indicador de actividad -->
             <div class="msg-indicator" id="msg-indicator"></div>
           </div>
         </div>
 
-        <!-- BARRA DE CHAT -->
+        <!-- BARRA DE CHAT UNIFICADA (estilo píldora) — siempre al fondo -->
         <div class="chat-bar" id="chat-bar">
-          <!-- Preview de imagen pegada -->
-          <div id="chat-image-preview" style="display:none; width:100%; padding:6px 8px 0; position:relative;">
-            <div style="display:flex;align-items:center;gap:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(99,179,237,0.2);border-radius:8px;padding:6px 10px;">
-              <img id="chat-img-thumb" style="height:48px;width:auto;border-radius:4px;object-fit:cover;" src="" alt="imagen">
-              <div style="flex:1;min-width:0;">
-                <div style="font-size:0.65rem;color:#7ecfff;font-weight:600;">📷 Imagen adjunta</div>
-                <div id="chat-img-name" style="font-size:0.6rem;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></div>
-              </div>
-              <button id="chat-img-remove" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:1rem;padding:2px 6px;" title="Quitar imagen">✕</button>
-            </div>
+          <!-- Preview imagen ARRIBA de la barra (tamaño fijo, no corrompe el pill) -->
+          <div id="chat-image-preview" class="chat-preview-bar" style="display:none;">
+            <div id="chat-img-thumbs" class="chat-preview-thumbs"></div>
+            <button id="chat-img-remove" class="chat-preview-x" title="Quitar imágenes">✕</button>
           </div>
-          <button class="attach-btn" id="attach-btn" title="Adjuntar archivo/imagen">+</button>
-          <input type="file" id="chat-image-file-input" accept="image/*" style="display:none;">
-          <div class="chat-input-wrap">
-            <textarea id="chat-text-input" class="chat-textarea" placeholder="Escribe un mensaje o pega una imagen (Ctrl+V)..." rows="1" autocomplete="off"></textarea>
+          <div class="chat-pill" id="chat-pill">
+            <textarea id="chat-text-input" class="chat-textarea" placeholder="Preguntar lo que quieras" rows="1" autocomplete="off"></textarea>
+            <button class="mic-btn" id="mic-btn" title="Hablar">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3zm7 8a7 7 0 0 1-14 0H3a9 9 0 0 0 8 8.94V22h2v-3.06A9 9 0 0 0 21 10h-2z"/></svg>
+            </button>
+            <button class="send-btn" id="chat-send-btn" title="Enviar">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+            </button>
           </div>
-          <button class="mic-btn" id="mic-btn" title="Hablar">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3zm7 8a7 7 0 0 1-14 0H3a9 9 0 0 0 8 8.94V22h2v-3.06A9 9 0 0 0 21 10h-2z"/></svg>
-          </button>
-          <button class="send-btn" id="chat-send-btn" title="Enviar">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-          </button>
+          <input type="file" id="chat-image-file-input" accept="image/*" multiple style="display:none;">
         </div>
 
       </div>
     </div>
   </div>
 
+
+  <!-- PLAN PANEL -->
+  <aside class="plan-panel collapsed" id="plan-panel">
+    <div class="pp-header">
+      <span>Plan <span class="pp-badge">Experimental</span></span>
+      <button id="plan-toggle-btn" class="toggle-btn" title="Alternar panel de plan">◀</button>
+      <button id="plan-close-btn" class="toggle-btn" title="Cerrar panel">X</button>
+    </div>
+    <div class="pp-body" id="pp-body">
+      <div class="pp-empty">No hay planes guardados.<br>Pedile a Jarvis que cree un plan.</div>
+    </div>
+  </aside>
+
+  <!-- BOTÓN CORNER DE PROMPT (debajo de la barra superior, esquina) -->
+  <button id="prompt-reopen-btn" class="prompt-corner-btn" style="display:none" title="Ver último prompt">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+  </button>
+
+  <!-- PROMPT MODAL (ventana mediana que se actualiza con cada prompt) -->
+  <div class="prompt-modal" id="prompt-modal" style="display:none">
+    <div class="pm-card">
+      <div class="pm-header">
+        <span class="pm-title" id="pm-title">Prompt</span>
+        <button id="pm-close-btn" class="toggle-btn" title="Cerrar">X</button>
+      </div>
+      <div class="pm-body">
+        <div class="pm-text" id="pm-text"></div>
+        <div class="pr-card-links" id="pm-links" style="display:none"></div>
+        <button class="pr-copy-btn" id="pm-copy-btn">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          <span>Copiar prompt</span>
+        </button>
+      </div>
+    </div>
+  </div>
 
   <!-- RIGHT PANEL (diagnostics) -->
   <aside class="right-panel collapsed" id="right-panel">
@@ -694,135 +689,193 @@
       </div>
       <div class="config-tab-content">
         <div class="tab-pane active" id="tab-general">
-          <div class="config-field">
-            <label>Nombre de usuario</label>
-            <input type="text" id="username-input" class="config-input" placeholder="Santiago">
+          <div class="config-section">
+            <div class="config-section-title">👤 Identidad</div>
+            <div class="config-field">
+              <label>Nombre de usuario</label>
+              <input type="text" id="username-input" class="config-input" placeholder="Santiago">
+            </div>
+            <div class="config-field" style="margin-top:8px;">
+              <label>Tratamiento (cómo quieres que JARVIS te llame)</label>
+              <input type="text" id="title-input" class="config-input" placeholder="señor, don, licenciado...">
+            </div>
           </div>
-          <div class="config-field" style="margin-top:8px;">
-            <label>Tratamiento (cómo quieres que JARVIS te llame)</label>
-            <input type="text" id="title-input" class="config-input" placeholder="señor, don, licenciado...">
+
+          <div class="config-section">
+            <div class="config-section-title">🌍 Idioma y ubicación</div>
+            <div class="config-field">
+              <label>Idioma del Sistema</label>
+              <select id="lang-select" class="config-select">
+                <option value="es">Español (América Latina / España)</option>
+                <option value="en">English (US / UK)</option>
+                <option value="pt">Português (Brasil / Portugal)</option>
+                <option value="fr">Français</option>
+                <option value="de">Deutsch</option>
+                <option value="it">Italiano</option>
+                <option value="ja">日本語 (Japanese)</option>
+                <option value="zh">中文 (Chinese)</option>
+                <option value="ru">Русский (Russian)</option>
+                <option value="ar">العربية (Arabic)</option>
+                <option value="ko">한국어 (Korean)</option>
+                <option value="nl">Nederlands (Dutch)</option>
+                <option value="pl">Polski (Polish)</option>
+                <option value="tr">Türkçe (Turkish)</option>
+                <option value="vi">Tiếng Việt (Vietnamese)</option>
+                <option value="hi">हिन्दी (Hindi)</option>
+                <option value="sv">Svenska (Swedish)</option>
+                <option value="no">Norsk (Norwegian)</option>
+                <option value="da">Dansk (Danish)</option>
+                <option value="fi">Suomi (Finnish)</option>
+                <option value="el">Ελληνικά (Greek)</option>
+                <option value="cs">Čeština (Czech)</option>
+                <option value="ro">Română (Romanian)</option>
+                <option value="hu">Magyar (Hungarian)</option>
+                <option value="uk">Українська (Ukrainian)</option>
+                <option value="he">עברית (Hebrew)</option>
+                <option value="th">ไทย (Thai)</option>
+                <option value="id">Bahasa Indonesia</option>
+              </select>
+            </div>
+            <div class="config-field">
+              <label>Ciudad (para el clima)</label>
+              <input type="text" id="city-input" class="config-input" placeholder="Asuncion">
+              <p class="setup-key-hint" style="margin-top:4px;">Se guarda automáticamente al hacer clic en Guardar. Luego decí "clima" sin especificar ciudad.</p>
+            </div>
           </div>
-          <div class="config-field">
-            <label>Idioma</label>
-            <select id="lang-select" class="config-select">
-              <option value="es">Espanol</option>
-              <option value="en">English</option>
-            </select>
+
+          <div class="config-section">
+            <div class="config-section-title">🎭 Personalidad</div>
+            <div class="config-field">
+              <label>Personalidad</label>
+              <select id="personality-select" class="config-select">
+                <option value="professional">Profesional</option>
+                <option value="companion">Compañero</option>
+                <option value="friendly">Amigable</option>
+                <option value="strategic">Estratégico</option>
+                <option value="humorous">Humorístico</option>
+              </select>
+            </div>
+            <div class="config-field">
+              <label>Longitud de respuestas</label>
+              <select id="length-select" class="config-select">
+                <option value="normal">Normal</option>
+                <option value="concise">Conciso</option>
+                <option value="detailed">Detallado</option>
+              </select>
+            </div>
           </div>
-          <div class="config-field">
-            <label>Personalidad</label>
-            <select id="personality-select" class="config-select">
-              <option value="professional">Profesional</option>
-              <option value="companion">Compañero</option>
-              <option value="friendly">Amigable</option>
-              <option value="strategic">Estratégico</option>
-              <option value="humorous">Humorístico</option>
-            </select>
+
+          <div class="config-section">
+            <div class="config-section-title">🎨 Apariencia</div>
+            <div class="config-field">
+              <label>Tamano de fuente</label>
+              <input type="range" id="font-size-slider" min="0" max="4" step="1">
+            </div>
           </div>
-          <div class="config-field">
-            <label>Longitud de respuestas</label>
-            <select id="length-select" class="config-select">
-              <option value="normal">Normal</option>
-              <option value="concise">Conciso</option>
-              <option value="detailed">Detallado</option>
-            </select>
-          </div>
-          <div class="config-field">
-            <label>Tamano de fuente</label>
-            <input type="range" id="font-size-slider" min="0" max="4" step="1">
-          </div>
-          <div class="config-field">
-            <label>Ciudad (para el clima)</label>
-            <input type="text" id="city-input" class="config-input" placeholder="Asuncion">
-            <p class="setup-key-hint" style="margin-top:4px;">Se guarda automáticamente al hacer clic en Guardar. Luego decí "clima" sin especificar ciudad.</p>
-          </div>
-          <div class="config-field" style="margin-top:12px; display:flex; align-items:center; gap:10px;">
-            <label style="margin:0; width:auto; cursor:pointer; font-size:0.75rem;">Interrumpir a Jarvis mientras habla</label>
-            <label class="perm-toggle-wrap" style="margin-left:auto;">
-              <input type="checkbox" class="perm-toggle" id="interrupt-toggle" checked>
-              <span class="perm-slider"></span>
-            </label>
+
+          <div class="config-section">
+            <div class="config-section-title">⚙️ Interacción</div>
+            <div class="config-field" style="margin-top:12px; display:flex; align-items:center; gap:10px;">
+              <label style="margin:0; width:auto; cursor:pointer; font-size:0.75rem;">Interrumpir a Jarvis mientras habla</label>
+              <label class="perm-toggle-wrap" style="margin-left:auto;">
+                <input type="checkbox" class="perm-toggle" id="interrupt-toggle" checked>
+                <span class="perm-slider"></span>
+              </label>
+            </div>
           </div>
         </div>
         <div class="tab-pane" id="tab-voice">
-          <div class="config-field">
-            <label>Genero de voz</label>
-            <select id="voice-gender-select" class="config-select">
-              <option value="male">Masculina</option>
-              <option value="female">Femenina</option>
-            </select>
+          <div class="config-section">
+            <div class="config-section-title">🎙️ Género de voz</div>
+            <div class="config-field">
+              <label>Genero de voz</label>
+              <select id="voice-gender-select" class="config-select">
+                <option value="male">Masculina</option>
+                <option value="female">Femenina</option>
+              </select>
+            </div>
           </div>
-          <div class="config-field">
-            <label>Voz de Jarvis</label>
-            <select id="voice-select" class="config-select">
-              <option value="Fenrir">Fenrir (Masculino)</option>
-              <option value="Puck">Puck (Neutro)</option>
-              <option value="Charon">Charon (Grave)</option>
-              <option value="Aoede">Aoede (Femenino)</option>
-              <option value="Athena">Athena (Femenino)</option>
-            </select>
-            <p class="setup-key-hint">Las voces se filtran según el género seleccionado arriba.</p>
+          <div class="config-section">
+            <div class="config-section-title">🗣️ Voz de Jarvis</div>
+            <div class="config-field">
+              <label>Voz de Jarvis</label>
+              <select id="voice-select" class="config-select">
+                <option value="Fenrir">Fenrir (Masculino)</option>
+                <option value="Puck">Puck (Neutro)</option>
+                <option value="Charon">Charon (Grave)</option>
+                <option value="Aoede">Aoede (Femenino)</option>
+                <option value="Athena">Athena (Femenino)</option>
+              </select>
+              <p class="setup-key-hint">Las voces se filtran según el género seleccionado arriba.</p>
+            </div>
+            <div class="config-field">
+              <button class="config-btn primary" id="voice-preview-btn" style="font-size:0.72rem; padding:8px 16px;">▶ Probar voz</button>
+              <span id="voice-preview-status" style="font-size:0.68rem;color:var(--text-dim);margin-left:8px;"></span>
+            </div>
           </div>
         </div>
         <div class="tab-pane" id="tab-rules">
-          <div class="config-field">
-            <label>Reglas personalizadas</label>
-            <textarea id="rules-textarea" class="config-textarea" placeholder="Ej: Siempre responde en espanol..."></textarea>
+          <div class="config-section">
+            <div class="config-section-title">📜 Reglas personalizadas</div>
+            <div class="config-field">
+              <label>Reglas que Jarvis debe seguir SIEMPRE</label>
+              <textarea id="rules-textarea" class="config-textarea" placeholder="Ej: Siempre responde en espanol..."></textarea>
+              <p class="setup-key-hint" style="margin-top:4px;">Escribí una regla por línea. Ej: "Nunca mencionar mi ex", "Siempre llamarme señor".</p>
+            </div>
           </div>
-          <div class="config-field">
-            <label>Contexto adicional</label>
-            <textarea id="context-textarea" class="config-textarea" placeholder="Informacion que Jarvis debe saber sobre ti..."></textarea>
+          <div class="config-section">
+            <div class="config-section-title">🧠 Contexto adicional</div>
+            <div class="config-field">
+              <label>Información que Jarvis debe saber sobre ti</label>
+              <textarea id="context-textarea" class="config-textarea" placeholder="Informacion que Jarvis debe saber sobre ti..."></textarea>
+              <p class="setup-key-hint" style="margin-top:4px;">Contexto base inyectado en cada conversación: proyectos, situación, preferencias generales.</p>
+            </div>
           </div>
         </div>
         <div class="tab-pane" id="tab-api-keys">
-          <div class="config-field">
-            <label>🌐 Gemini (Google)</label>
-            <div class="setup-key-field">
-              <input type="password" id="config-gemini-key" class="setup-key-input" placeholder="AIzaSy...">
-              <button class="setup-toggle-btn" id="config-gemini-toggle" type="button">👁</button>
+          <div class="provider-card recommended">
+            <div class="provider-card-head">
+              <div class="provider-card-title">
+                <span class="provider-icon">🧠</span>
+                <span>Google Gemini</span>
+                <span class="provider-badge">Recomendado</span>
+              </div>
+              <a href="https://aistudio.google.com/apikey" target="_blank" class="provider-link">Obtener clave gratis →</a>
             </div>
-            <p class="setup-key-hint"><a href="https://aistudio.google.com/" target="_blank">Google AI Studio</a> — Gratis con límite generoso</p>
+            <p class="provider-card-desc">Velocidad, rendimiento multimodal y límites gratuitos generosos. Es el motor oficial de Jarvis.</p>
           </div>
-          <div class="config-field" style="margin-top:4px;">
-            <button class="config-btn primary" id="config-test-gemini-btn" style="font-size:0.7rem;">Probar clave Gemini</button>
-            <div id="config-gemini-status" class="setup-key-error" style="display:none; margin-top:6px;"></div>
-          </div>
-          <div class="config-field" style="margin-top:14px; border-top:1px solid var(--border-color); padding-top:14px;">
-            <label>🤖 ChatGPT (OpenAI)</label>
-            <div class="setup-key-field">
-              <input type="password" id="config-openai-key" class="setup-key-input" placeholder="sk-...">
-              <button class="setup-toggle-btn" id="config-openai-toggle" type="button">👁</button>
+
+          <div class="config-section">
+            <div class="config-section-title">🔑 Clave API Universal</div>
+            <div class="config-field">
+              <label>Una sola barra para cualquier proveedor</label>
+              <div class="setup-key-field">
+                <input type="password" id="config-universal-key" class="setup-key-input" placeholder="Pegá tu clave aquí: Gemini, ChatGPT, Claude, Groq...">
+                <button class="setup-toggle-btn" id="config-universal-toggle" type="button">👁</button>
+              </div>
+              <div id="universal-key-type" style="font-size:0.68rem; color:var(--primary); margin-top:5px; font-weight:600; min-height:16px;">✨ Ingresá cualquier clave API — se detecta el proveedor automáticamente.</div>
             </div>
-            <p class="setup-key-hint"><a href="https://platform.openai.com/api-keys" target="_blank">OpenAI Platform</a> — Modelos GPT-4o / GPT-4o-mini</p>
-          </div>
-          <div class="config-field">
-            <label>🧠 Claude (Anthropic)</label>
-            <div class="setup-key-field">
-              <input type="password" id="config-claude-key" class="setup-key-input" placeholder="sk-ant-...">
-              <button class="setup-toggle-btn" id="config-claude-toggle" type="button">👁</button>
+            <div class="config-field" style="margin-top:8px;">
+              <button class="config-btn primary" id="config-test-universal-btn" style="font-size:0.72rem; padding: 8px 16px;">Probar Clave API</button>
+              <div id="config-universal-status" class="setup-key-error" style="display:none; margin-top:8px;"></div>
             </div>
-            <p class="setup-key-hint"><a href="https://console.anthropic.com/" target="_blank">Anthropic Console</a> — Modelo Claude Sonnet</p>
           </div>
-          <div class="config-field">
-            <label>🔍 DeepSeek</label>
-            <div class="setup-key-field">
-              <input type="password" id="config-deepseek-key" class="setup-key-input" placeholder="sk-...">
-              <button class="setup-toggle-btn" id="config-deepseek-toggle" type="button">👁</button>
+
+          <div class="config-section">
+            <div class="config-section-title">🔎 Búsqueda Web Google <span class="config-optional">(Opcional)</span></div>
+            <div class="config-field">
+              <label>Google Custom Search — API Key</label>
+              <div class="setup-key-field">
+                <input type="password" id="config-google-api-key" class="setup-key-input" placeholder="AIzaSy...">
+                <button class="setup-toggle-btn" id="config-google-api-toggle" type="button">👁</button>
+              </div>
+              <p class="setup-key-hint"><a href="https://console.cloud.google.com/apis/credentials" target="_blank">Google Cloud Console</a> — Custom Search API</p>
             </div>
-            <p class="setup-key-hint"><a href="https://platform.deepseek.com/" target="_blank">DeepSeek Platform</a> — Modelo DeepSeek-V3</p>
-          </div>
-          <div class="config-field" style="margin-top:16px; border-top:1px solid var(--border-color); padding-top:16px;">
-            <label>🔎 Google Search API (para búsquedas web)</label>
-            <div class="setup-key-field">
-              <input type="password" id="config-google-api-key" class="setup-key-input" placeholder="AIzaSy...">
-              <button class="setup-toggle-btn" id="config-google-api-toggle" type="button">👁</button>
+            <div class="config-field">
+              <label>Google Search Engine ID (CX)</label>
+              <input type="text" id="config-google-cx" class="config-input" placeholder="0123456789abcdef">
+              <p class="setup-key-hint" style="margin-top:4px;">Mejora la precisión de las búsquedas web de Jarvis. Si lo dejás vacío, se usan otros motores automáticamente.</p>
             </div>
-            <p class="setup-key-hint"><a href="https://console.cloud.google.com/apis/credentials" target="_blank">Google Cloud Console</a> — Activar Custom Search API</p>
-          </div>
-          <div class="config-field">
-            <label>Google Search Engine ID (CX)</label>
-            <input type="text" id="config-google-cx" class="config-input" placeholder="0123456789abcdef">
-            <p class="setup-key-hint"><a href="https://cse.google.com/cse/all" target="_blank">Google CSE</a> — Buscar en toda la web</p>
           </div>
         </div>
         <div class="tab-pane" id="tab-permissions">
@@ -832,45 +885,83 @@
           </div>
         </div>
         <div class="tab-pane" id="tab-advanced">
-          <div class="config-field">
-            <label>Calidad grafica</label>
-            <select id="graphics-select" class="config-select">
-              <option value="low">Baja — minimo rendimiento, maxima compatibilidad</option>
-              <option value="medium">Media — equilibrio entre estetica y rendimiento</option>
-              <option value="high">Alta — efectos visuales completos</option>
-              <option value="ultra">Ultra (Experimental) — maxima calidad, alto consumo</option>
+          <div class="config-section">
+            <div class="config-section-title">🎨 Calidad gráfica</div>
+            <div class="gfx-grid">
+              <div class="gfx-card" data-gfx="low">
+                <div class="gfx-card-icon">🪶</div>
+                <div class="gfx-card-title">Baja</div>
+                <div class="gfx-card-desc">Animación fluida sin efectos ni resplandores. Mínimo consumo.</div>
+              </div>
+              <div class="gfx-card" data-gfx="medium">
+                <div class="gfx-card-icon">🌟</div>
+                <div class="gfx-card-title">Media</div>
+                <div class="gfx-card-desc">Más gráficos: partículas estándar y resplandor moderado.</div>
+              </div>
+              <div class="gfx-card" data-gfx="high">
+                <div class="gfx-card-icon">⚡</div>
+                <div class="gfx-card-title">Alta</div>
+                <div class="gfx-card-desc">Efectos neón completos, reactor fluido y partículas dinámicas.</div>
+              </div>
+              <div class="gfx-card" data-gfx="ultra">
+                <div class="gfx-card-icon">🌀</div>
+                <div class="gfx-card-title">Ultra</div>
+                <div class="gfx-card-desc">Experimental: transforma por completo la experiencia con efectos holográficos.</div>
+              </div>
+            </div>
+            <select id="graphics-select" class="config-select" style="display:none;">
+              <option value="low">Baja</option>
+              <option value="medium">Media</option>
+              <option value="high">Alta</option>
+              <option value="ultra">Ultra (Experimental)</option>
             </select>
           </div>
-          <div class="config-field" style="flex-direction:row;align-items:center;gap:10px;">
-            <label class="perm-item" style="margin:0;padding:0;background:none;border:none;">
-              <input type="checkbox" class="perm-toggle" id="anim-toggle">
-              <span class="perm-slider"></span>
-            </label>
-            <label for="anim-toggle" style="font-size:0.75rem;cursor:pointer;">Animaciones</label>
-          </div>
-          <div class="config-field">
-            <label>Sensibilidad del microfono (deteccion de voz e interrupcion)</label>
-            <input type="range" id="vad-slider" min="50" max="800" step="10">
-            <div style="display:flex;gap:6px;margin-top:4px;">
-              <button class="config-btn small" data-vad="50" style="font-size:0.6rem">Maxima</button>
-              <button class="config-btn small" data-vad="300" style="font-size:0.6rem">Normal</button>
-              <button class="config-btn small" data-vad="600" style="font-size:0.6rem">Voz fuerte</button>
+
+          <div class="config-section">
+            <div class="config-section-title">✨ Efectos</div>
+            <div class="config-field" style="flex-direction:row;align-items:center;gap:10px;">
+              <label class="perm-item" style="margin:0;padding:0;background:none;border:none;">
+                <input type="checkbox" class="perm-toggle" id="anim-toggle" checked>
+                <span class="perm-slider"></span>
+              </label>
+              <label for="anim-toggle" style="font-size:0.75rem;cursor:pointer;">Animaciones</label>
             </div>
           </div>
-          <div class="config-field" style="flex-direction:row;align-items:center;gap:8px;">
-            <button class="config-btn danger" id="clear-btn">Limpiar conversacion</button>
-            <span id="clear-confirm-span" style="display:none;gap:6px;align-items:center;">
-              <span>Seguro?</span>
-              <button class="config-btn danger small" id="confirm-yes-btn">Si</button>
-              <button class="config-btn small" id="confirm-no-btn">No</button>
-            </span>
+
+          <div class="config-section">
+            <div class="config-section-title">🎙️ Micrófono</div>
+            <div class="config-field">
+              <label>Sensibilidad del microfono (deteccion de voz e interrupcion)</label>
+              <input type="range" id="vad-slider" min="50" max="800" step="10">
+              <div style="display:flex;gap:6px;margin-top:4px;">
+                <button class="config-btn small" data-vad="50" style="font-size:0.6rem">Maxima</button>
+                <button class="config-btn small" data-vad="300" style="font-size:0.6rem">Normal</button>
+                <button class="config-btn small" data-vad="600" style="font-size:0.6rem">Voz fuerte</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="config-section">
+            <div class="config-section-title">🛠️ Mantenimiento</div>
+            <div class="config-field" style="flex-direction:row;align-items:center;gap:8px;">
+              <button class="config-btn primary" id="sync-apps-btn">🔄 Sincronizar aplicaciones</button>
+              <span id="sync-apps-result" style="font-size:0.7rem;color:var(--text-dim);display:none;"></span>
+            </div>
+            <div class="config-field" style="flex-direction:row;align-items:center;gap:8px;">
+              <button class="config-btn danger" id="clear-btn">Limpiar conversacion</button>
+              <span id="clear-confirm-span" style="display:none;gap:6px;align-items:center;">
+                <span>Seguro?</span>
+                <button class="config-btn danger small" id="confirm-yes-btn">Si</button>
+                <button class="config-btn small" id="confirm-no-btn">No</button>
+              </span>
+            </div>
           </div>
         </div>
         <div class="tab-pane" id="tab-about">
           <div style="text-align:center;padding:20px 0;">
             <div style="font-size:2.5rem;font-weight:700;background:linear-gradient(135deg,#00BFFF,#00FF88);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:2px;">JARVIS</div>
             <div style="font-size:0.8rem;color:var(--text-dim);margin:4px 0 8px;">Asistente Personal Inteligente</div>
-            <div style="font-size:1.1rem;font-weight:600;color:var(--accent);" id="about-version">v3.0.0</div>
+            <div style="font-size:1.1rem;font-weight:600;color:var(--accent);" id="about-version">v3.6.0</div>
             <div style="font-size:0.7rem;color:var(--text-dim);margin:4px 0 20px;">Electron + Gemini Live API</div>
             <div style="font-size:0.75rem;color:var(--text-dim);margin-bottom:12px;line-height:1.5;">
               Desarrollado por echamo89-wq<br>
@@ -889,45 +980,11 @@
               <div style="font-size:0.65rem;color:var(--text-dim);letter-spacing:1px;margin-bottom:10px;text-transform:uppercase;">Síguenos</div>
               <div style="display:flex;justify-content:center;gap:10px;flex-wrap:wrap;">
                 <a href="https://www.youtube.com/@JarvisJSS" target="_blank" style="color:#FF0000;text-decoration:none;font-size:0.75rem;padding:6px 14px;border:1px solid rgba(255,0,0,0.2);border-radius:6px;display:flex;align-items:center;gap:5px;transition:all 0.2s;">▶ YouTube</a>
-                <a href="https://www.instagram.com/jarvis_js2006" target="_blank" style="color:#E1306C;text-decoration:none;font-size:0.75rem;padding:6px 14px;border:1px solid rgba(225,48,108,0.2);border-radius:6px;display:flex;align-items:center;gap:5px;transition:all 0.2s;">📷 Instagram</a>
+                <a href="https://www.instagram.com/jarvis_js_js/" target="_blank" style="color:#E1306C;text-decoration:none;font-size:0.75rem;padding:6px 14px;border:1px solid rgba(225,48,108,0.2);border-radius:6px;display:flex;align-items:center;gap:5px;transition:all 0.2s;">📷 Instagram</a>
                 <a href="https://www.tiktok.com/@jarvis_jjs" target="_blank" style="color:#fff;text-decoration:none;font-size:0.75rem;padding:6px 14px;border:1px solid rgba(255,255,255,0.2);border-radius:6px;display:flex;align-items:center;gap:5px;transition:all 0.2s;">🎵 TikTok</a>
               </div>
             </div>
 
-            <!-- Donar -->
-            <div style="border-top:1px solid rgba(99,179,237,0.1);padding-top:16px;">
-              <div style="font-size:0.65rem;color:var(--text-dim);letter-spacing:1px;margin-bottom:6px;text-transform:uppercase;">Apoyar el Proyecto</div>
-              <div style="font-size:0.7rem;color:var(--text-dim);margin-bottom:12px;line-height:1.5;">
-                JARVIS es 100% independiente y open-source. Tu apoyo ayuda a seguir desarrollando.<br>
-                Cualquier aporte es bienvenido ❤️
-              </div>
-              <div style="display:flex;flex-direction:column;gap:8px;align-items:center;">
-                <a href="https://ko-fi.com/jarvisdonaciones" target="_blank" class="donate-btn" style="
-                  display: inline-flex; align-items: center; gap: 8px; width: 100%;
-                  background: linear-gradient(135deg, rgba(0,191,255,0.15), rgba(0,255,136,0.1));
-                  border: 1px solid rgba(0,191,255,0.35); color: #7ecfff;
-                  text-decoration: none; padding: 10px 24px; border-radius: 8px;
-                  font-size: 0.85rem; font-weight: 600; letter-spacing: 0.5px;
-                  transition: all 0.25s; justify-content: center;
-                ">
-                  ☕ Donar con Ko-fi
-                </a>
-                <button id="donate-crypto-btn" style="
-                  display: inline-flex; align-items: center; gap: 8px; width: 100%;
-                  background: rgba(255,255,255,0.03); border: 1px solid rgba(99,179,237,0.15);
-                  color: var(--text-dim); padding: 8px 24px; border-radius: 8px;
-                  font-size: 0.75rem; font-weight: 500; cursor: pointer;
-                  transition: all 0.25s; justify-content: center;
-                ">₿ Donar con Cripto (USDT)</button>
-              </div>
-              <div id="crypto-address" style="display:none;margin-top:8px;padding:10px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(99,179,237,0.1);font-size:0.65rem;">
-                <div style="color:var(--text-dim);margin-bottom:4px;">Red TRC-20 (USDT):</div>
-                <div style="display:flex;gap:6px;align-items:center;">
-                  <code style="flex:1;font-size:0.55rem;color:#7ecfff;word-break:break-all;background:rgba(0,0,0,0.3);padding:6px;border-radius:4px;" id="usdt-address">0x2C9abB9626991bB7C2E41f03D0023a4034058D4B</code>
-                  <button id="copy-address-btn" style="background:none;border:1px solid rgba(99,179,237,0.2);color:#7ecfff;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:0.65rem;">Copiar</button>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
 

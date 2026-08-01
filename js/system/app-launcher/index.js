@@ -1,0 +1,12 @@
+export { launchApp, rebuildCatalog, ensureCatalog, getVerificationStatus, getCatalogStats, getAliases, seedCatalogFromKnownApps } from './AppLauncher.js';
+export { default as AppNormalizer } from './AppNormalizer.js';
+export { default as AppAliases } from './AppAliases.js';
+export { default as AppCatalog } from './AppCatalog.js';
+export { default as AppScanner } from './AppScanner.js';
+export { default as AppDiscovery } from './AppDiscovery.js';
+export { default as AppCache } from './AppCache.js';
+export { default as resolveApp } from './AppResolver.js';
+export { launchWithFallback, launchMethod, launchExecutable, launchUri, launchAppId, launchShortcut, launchShellCommand, launchStartProcess } from './LaunchStrategies.js';
+export { AppVerifier } from './AppVerifier.js';
+export { success, failure, launchResult, notFound } from './AppResult.js';
+export { AppErrorCode, errorMessage } from './AppErrors.js';

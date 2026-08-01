@@ -41,7 +41,13 @@ export class MemoryEngine {
 
   async persist() {
     try {
+      let existing = {};
+      try {
+        const raw = await window.electronAPI.memoryRead();
+        if (raw && typeof raw === 'object' && !Array.isArray(raw)) existing = raw;
+      } catch (e) {}
       await window.electronAPI.memoryWrite({
+        ...existing,
         identityMemory: this._stores.identity,
         userMemory: this._stores.user,
         projectMemory: this._stores.project,

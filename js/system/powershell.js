@@ -17,9 +17,9 @@ export async function executeWithFallback(command, description) {
       }
       _log('info', `Abriendo aplicación: ${appName}`);
       try {
-        const cmdResult = await window.electronAPI.runCmd(`start "" "${appName}"`);
+        const cmdResult = await window.electronAPI.startProcess(appName);
         if (cmdResult.success) return { success: true, output: `Aplicación ${appName} iniciada.` };
-      } catch (e) { _log('warn', `CMD start falló: ${e.message}`); }
+      } catch (e) { _log('warn', `Start-Process falló: ${e.message}`); }
 
       const psCommand = [
         `$ErrorActionPreference = 'Stop';`,
@@ -54,7 +54,7 @@ export async function executeWithFallback(command, description) {
         `    }`,
         `  }`,
         `  if ($foundPath) { Write-Output "OK:$foundPath"; }`,
-        `  else { Write-Error "No se pudo encontrar '${appName}'."; exit 1; }`,
+        `  else { throw "No se pudo encontrar '${appName}'." }`,
         `}`
       ].join('\n');
       return await window.electronAPI.runPowerShell(psCommand);
@@ -63,13 +63,13 @@ export async function executeWithFallback(command, description) {
 
   let finalCommand = command;
   if (!command.includes('try {') && !command.includes('@"')) {
-    finalCommand = `$ErrorActionPreference = 'Stop'; try { ${command} } catch { Write-Error $_.Exception.Message; exit 1 }`;
+    finalCommand = `$ErrorActionPreference = 'Stop'; try { ${command} } catch { throw $_.Exception.Message }`;
   }
   let result = await window.electronAPI.runPowerShell(finalCommand);
   if (!result.success && command.includes('Get-WmiObject')) {
     const fixed = command.replace(/Get-WmiObject/g, 'Get-CimInstance');
     if (!fixed.includes('try {') && !fixed.includes('@"')) {
-      const fixedCommand = `$ErrorActionPreference = 'Stop'; try { ${fixed} } catch { Write-Error $_.Exception.Message; exit 1 }`;
+      const fixedCommand = `$ErrorActionPreference = 'Stop'; try { ${fixed} } catch { throw $_.Exception.Message }`;
       result = await window.electronAPI.runPowerShell(fixedCommand);
     } else {
       result = await window.electronAPI.runPowerShell(fixed);

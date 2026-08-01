@@ -7,7 +7,7 @@ export async function handleGetWeather(call, store) {
   if (!city) city = localStorage.getItem('jarvis_city') || '';
   if (!city) {
     try {
-      const ipRes = await fetchUrlContent('https://ip-api.com/json/?fields=city');
+      const ipRes = await fetchUrlContent('https://ip-api.com/json/?fields=city', true);
       if (ipRes.success) {
         const data = JSON.parse(ipRes.output);
         if (data.city) city = data.city;
@@ -22,7 +22,7 @@ export async function handleGetWeather(call, store) {
   }
   try {
     const jsonUrl = `https://wttr.in/${encodeURIComponent(city)}?format=j1`;
-    const jsonRes = await fetchUrlContent(jsonUrl);
+    const jsonRes = await fetchUrlContent(jsonUrl, true);
     if (jsonRes.success) {
       const wdata = JSON.parse(jsonRes.output);
       const current = wdata.current_condition?.[0];
@@ -58,66 +58,92 @@ export async function handleGetWeather(call, store) {
   return result;
 }
 
+async function _parseRSSItems(text) {
+  const items = text.match(/<item>[\s\S]*?<\/item>/gi) || [];
+  return items.map(item => {
+    const title = (item.match(/<title(?:[^>]*)>([^<]*)<\/title>/i) || [,''])[1].replace(/<!\[CDATA\[|\]\]>/g, '').trim();
+    const desc = (item.match(/<description(?:[^>]*)>([^<]*)<\/description>/i) || [,''])[1].replace(/<!\[CDATA\[|\]\]>/g, '').replace(/<[^>]*>/g, '').trim();
+    const source = (item.match(/<source[^>]*>([^<]*)<\/source>/i) || [,''])[1].trim();
+    const link = (item.match(/<link[^>]*>([^<]*)<\/link>/i) || [,''])[1].trim();
+    return { title, desc: desc.substring(0, 150), source, link };
+  }).filter(i => i.title).slice(0, 10);
+}
+
+async function _fetchNewsRSS(topic, sport = false) {
+  const query = topic ? (sport ? `${topic}+sports+news` : `${topic}+news`) : (sport ? 'sports+news' : 'news');
+  // Try Google News RSS first
+  const urls = [
+    `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=es&gl=MX&ceid=MX:es`,
+    `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=en&gl=US&ceid=US:en`,
+  ];
+  for (const url of urls) {
+    try {
+      const res = await fetchUrlContent(url);
+      if (res.success) {
+        const items = _parseRSSItems(res.output);
+        if (items.length >= 3) return items;
+      }
+    } catch (_) {}
+  }
+  return [];
+}
+
 export async function handleGetNews(call) {
   const topic = call.args.topic || '';
-  const query = topic ? `${topic}+news` : 'news';
-  const url = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=es&gl=MX&ceid=MX:es`;
-  const result = await fetchUrlContent(url);
-  if (result.success) {
-    const lines = result.output.split('\n').filter(l => l.trim()).slice(0, 15);
-    const headlines = lines.map(l => l.replace(/<[^>]*>/g, '').trim()).filter(l => l && l.length > 10).slice(0, 10);
-    result.output = headlines.length > 0 ? headlines.join('\n') : result.output.substring(0, 1000);
+  const items = await _fetchNewsRSS(topic);
+  if (items.length === 0) {
+    // Fallback: use search_web for news
     try {
-      const { showInfoPanel } = await import('../../ui/info-panel.js');
-      showInfoPanel({
-        type: 'news',
-        title: (topic || 'ÚLTIMAS NOTICIAS').toUpperCase(),
-        source: 'Google News',
-        subtitle: topic ? `Noticias sobre ${topic}` : 'Últimas noticias',
-        keyPoints: headlines.slice(0, 6),
-        rawContent: headlines.join('\n')
-      });
-    } catch (_) {}
-  } else {
-    return { success: false, output: 'No se pudieron obtener noticias.' };
+      const { searchWeb } = await import('../web.js');
+      const result = await searchWeb(topic ? `últimas noticias ${topic} 2026` : 'últimas noticias', 'auto');
+      return result;
+    } catch (_) {
+      return { success: false, output: 'No se pudieron obtener noticias.' };
+    }
   }
-  return result;
+  const headlines = items.map(i => i.title + (i.source ? ` [${i.source}]` : ''));
+  const output = headlines.join('\n');
+  try {
+    const { showInfoPanel } = await import('../../ui/info-panel.js');
+    showInfoPanel({
+      type: 'news',
+      title: (topic || 'ÚLTIMAS NOTICIAS').toUpperCase(),
+      source: 'Google News',
+      subtitle: topic ? `Noticias sobre ${topic}` : 'Últimas noticias',
+      keyPoints: headlines.slice(0, 6),
+      rawContent: output
+    });
+  } catch (_) {}
+  return { success: true, output };
 }
 
 export async function handleGetSportsNews(call) {
   const sport = call.args.sport || '';
-  const query = sport ? `${sport}+sports+news` : 'sports+news';
-  const url = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=es&gl=MX&ceid=MX:es`;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8000);
-  try {
-    const res = await fetch(url, { signal: controller.signal });
-    clearTimeout(timeout);
-    const text = await res.text();
-    const items = text.match(/<item>[\s\S]*?<\/item>/gi) || [];
-    const headlines = items.map(item => {
-      const title = (item.match(/<title>([^<]*)<\/title>/i) || [,''])[1].replace(/<!\[CDATA\[|\]\]>/g, '').trim();
-      const source = (item.match(/<source[^>]*>([^<]*)<\/source>/i) || [,''])[1].trim();
-      return title ? `${title} [${source || 'Google News'}]` : '';
-    }).filter(h => h).slice(0, 8);
-    if (headlines.length === 0) return { success: false, output: 'No se encontraron noticias deportivas.' };
-    const output = (sport ? `=== ${sport.toUpperCase()} — NOTICIAS ===` : '=== NOTICIAS DEPORTIVAS ===') + '\n\n' + headlines.join('\n\n');
+  const items = await _fetchNewsRSS(sport, true);
+  if (items.length === 0) {
     try {
-      const { showInfoPanel } = await import('../../ui/info-panel.js');
-      showInfoPanel({
-        type: 'news',
-        title: (sport || 'DEPORTES').toUpperCase(),
-        source: 'Google News',
-        subtitle: sport ? `Noticias deportivas: ${sport}` : 'Últimas noticias deportivas',
-        keyPoints: headlines.slice(0, 5),
-        rawContent: output
-      });
-    } catch (_) {}
-    return { success: true, output };
-  } catch (e) {
-    clearTimeout(timeout);
-    return { success: false, output: `Error obteniendo noticias deportivas: ${e.message}` };
+      const { searchWeb } = await import('../web.js');
+      const q = sport ? `deportes ${sport} noticias 2026` : 'noticias deportivas 2026';
+      const result = await searchWeb(q, 'auto');
+      return result;
+    } catch (_) {
+      return { success: false, output: 'No se encontraron noticias deportivas.' };
+    }
   }
+  const headlines = items.map(i => `${i.title} [${i.source || 'Google News'}]`);
+  const output = (sport ? `=== ${sport.toUpperCase()} — NOTICIAS ===` : '=== NOTICIAS DEPORTIVAS ===') + '\n\n' + headlines.join('\n\n');
+  try {
+    const { showInfoPanel } = await import('../../ui/info-panel.js');
+    showInfoPanel({
+      type: 'news',
+      title: (sport || 'DEPORTES').toUpperCase(),
+      source: 'Google News',
+      subtitle: sport ? `Noticias deportivas: ${sport}` : 'Últimas noticias deportivas',
+      keyPoints: headlines.slice(0, 5),
+      rawContent: output
+    });
+  } catch (_) {}
+  return { success: true, output };
 }
 
 export async function handleYoutubeAction(call) {
@@ -141,19 +167,11 @@ export async function handleYoutubeDownload(call) {
   const formatCode = call.args.format_code || '';
   if (!url) return { success: false, output: 'Se requiere una URL de YouTube.' };
 
-  let formatArg = '';
-  let subfolder = 'Video';
-  if (fmt === 'audio') { formatArg = '-f "bestaudio[ext=m4a]/bestaudio"'; subfolder = 'Music'; }
-  else if (fmt === 'custom' && formatCode) { formatArg = `-f "${formatCode}"`; subfolder = 'Custom'; }
-  else { formatArg = '-f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]"'; }
-
-  const psCmd = `$desk=[Environment]::GetFolderPath("Desktop"); $dir=Join-Path $desk "JARVIS_Youtube" | Join-Path -Child "${subfolder}"; New-Item -ItemType Directory -Path $dir -Force | Out-Null; try { $path=$(yt-dlp --no-warnings ${formatArg} -o "$dir/%(title)s.%(ext)s" --no-playlist --print after_move:filepath --compat-options filename-sanitization "${url}" 2>$null); if ($LASTEXITCODE -eq 0 -and $path) { "OK: $path" } else { "ERROR: El comando falló con código $LASTEXITCODE" } } catch { "ERROR: $_" }`;
-  const psOutput = await executePowerShellCommand(psCmd, 'youtube_download', true);
-  if (psOutput.success && !psOutput.output?.startsWith('ERROR:')) {
-    const outputPath = psOutput.output?.replace(/^OK:\s*/, '').trim() || '';
-    return { success: true, output: `${fmt === 'audio' ? '🎵 Música' : '🎬 Video'} descargado. ${outputPath ? 'Archivo: ' + outputPath : 'En Escritorio/JARVIS_Youtube/' + subfolder + '/'}` };
+  const result = await window.electronAPI.youtubeDownload({ url, format: fmt, formatCode });
+  if (result.success) {
+    return { success: true, output: `${fmt === 'audio' ? '🎵 Música' : '🎬 Video'} descargado. ${result.output}` };
   }
-  return { success: false, output: `Error descargando video: ${(psOutput.output || '').replace(/^ERROR:\s*/, '')}` };
+  return { success: false, output: result.output };
 }
 
 export async function handleEditVideo(call) {

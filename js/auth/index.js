@@ -116,6 +116,10 @@ function _showStep(stepId) {
   const stepMap = { welcome: 1, 'gemini-key': 2, voice: 3, personality: 4, permissions: 5, ready: 6 };
   const num = stepMap[stepId] || 1;
   _updateProgress(num);
+
+  if (stepId === 'voice') {
+    _verifyMicrophoneHardware();
+  }
 }
 
 function _getStepNum(stepId) {
@@ -134,46 +138,81 @@ export function forceReauth() {
   location.reload();
 }
 
-function _completeOnboarding() {
+async function _completeOnboarding() {
   localStorage.setItem(ONBOARDED_KEY, 'true');
   localStorage.setItem(CREATOR_KEY, 'true');
   if (window.electronAPI?.getAppVersion) {
     window.electronAPI.getAppVersion().then(v => localStorage.setItem(VERSION_KEY, v)).catch(() => {});
   }
+
+  // Sincronizar preferencias del Onboarding con la store del sistema y guardarla
+  try {
+    const { store } = await import('../state/store.js');
+    const voice = localStorage.getItem('jarvis_voice') || 'Fenrir';
+    const gender = localStorage.getItem('jarvis_voice_gender') || 'male';
+    const personality = localStorage.getItem('jarvis_personality') || 'companion';
+    const hasMic = localStorage.getItem('jarvis_has_mic') === 'true';
+
+    store.set('voice', voice);
+    store.set('voiceGender', gender);
+    store.set('personality', personality);
+    store.set('useMic', hasMic);
+
+    const { saveConfig } = await import('../config/index.js');
+    await saveConfig();
+  } catch (err) {
+    console.error('[AUTH] Error al sincronizar configuración con el store:', err.message);
+  }
+
   _hideAuth();
   if (_authCallback) {
     _authCallback({ authed: true, user: { tier: 'local', email: 'local@jarvis.local', username: 'Modo Local' } });
   }
 }
 
-function _showFinalConfirmation() {
-  const overlay = document.getElementById('auth-confirm-overlay');
-  if (!overlay) { _completeOnboarding(); return; }
 
-  const cats = ['system', 'files', 'screen', 'integrations'];
-  cats.forEach(cat => {
-    const cb = document.querySelector(`.auth-perm-item[data-category="${cat}"] .auth-perm-toggle`);
-    const item = overlay.querySelector(`.auth-confirm-perm[data-cat="${cat}"]`);
-    if (item) {
-      item.style.display = cb?.checked ? 'flex' : 'none';
+
+async function _verifyMicrophoneHardware() {
+  const dot = document.getElementById('auth-mic-status-dot');
+  const text = document.getElementById('auth-mic-status-text');
+  const warning = document.getElementById('auth-mic-warning');
+
+  if (!dot || !text) return;
+
+  dot.style.background = '#ffb86c';
+  dot.style.boxShadow = '0 0 8px rgba(255,184,108,0.5)';
+  text.textContent = 'VERIFICANDO MICRÓFONO...';
+  if (warning) warning.style.display = 'none';
+
+  try {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+      throw new Error('API de dispositivos de audio no soportada');
     }
-  });
 
-  overlay.style.display = 'flex';
-  void overlay.offsetWidth;
-  overlay.classList.add('active');
-}
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const mics = devices.filter(d => d.kind === 'audioinput');
 
-function _hideFinalConfirmation() {
-  const overlay = document.getElementById('auth-confirm-overlay');
-  if (overlay) {
-    overlay.classList.remove('active');
-    const onEnd = () => {
-      overlay.style.display = 'none';
-      overlay.removeEventListener('transitionend', onEnd);
-    };
-    overlay.addEventListener('transitionend', onEnd);
-    setTimeout(() => { if (overlay.style.display !== 'none') overlay.style.display = 'none'; }, 300);
+    if (mics.length === 0) {
+      throw new Error('No se encontraron dispositivos de entrada de audio');
+    }
+
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    stream.getTracks().forEach(track => track.stop());
+
+    dot.style.background = '#2ed573';
+    dot.style.boxShadow = '0 0 8px rgba(46,213,115,0.5)';
+    text.textContent = 'MICRÓFONO DETECTADO Y ACTIVO';
+    localStorage.setItem('jarvis_has_mic', 'true');
+  } catch (err) {
+    console.warn('[AUTH] Error verificando micrófono:', err.message);
+    dot.style.background = '#ff453a';
+    dot.style.boxShadow = '0 0 8px rgba(255,69,58,0.5)';
+    text.textContent = 'SIN ACCESO A MICRÓFONO';
+    if (warning) {
+      warning.textContent = `⚠️ No se pudo inicializar el micrófono (${err.message}). JARVIS operará en modo "Solo Texto" por defecto.`;
+      warning.style.display = 'block';
+    }
+    localStorage.setItem('jarvis_has_mic', 'false');
   }
 }
 
@@ -256,7 +295,13 @@ document.addEventListener('DOMContentLoaded', () => {
           saveBtn.textContent = 'Guardar y continuar';
         }
       } catch (err) {
-        if (errorEl) { errorEl.textContent = 'Error de conexión: ' + err.message; errorEl.style.display = 'block'; }
+        let errMsg = err.message;
+        if (!navigator.onLine || err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
+          errMsg = 'No tienes conexión a internet. Verifica tu red e intenta de nuevo.';
+        } else if (err.name === 'TimeoutError' || err.message.includes('timeout')) {
+          errMsg = 'Tiempo de espera agotado al conectar con Google. Intenta de nuevo.';
+        }
+        if (errorEl) { errorEl.textContent = errMsg; errorEl.style.display = 'block'; }
         if (loadingEl) loadingEl.style.display = 'none';
         saveBtn.disabled = false;
         saveBtn.style.display = 'block';
@@ -335,12 +380,13 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Step 5: Permissions
-  document.getElementById('auth-permissions-btn')?.addEventListener('click', () => {
+  function _saveAndGoToSummary(denyAll = false) {
     const cats = ['system', 'files', 'screen', 'integrations'];
     cats.forEach(cat => {
       const cb = document.querySelector(`.auth-perm-item[data-category="${cat}"] .auth-perm-toggle`);
+      if (cb && denyAll) cb.checked = false;
       const key = 'jarvis_cat_' + cat;
-      localStorage.setItem(key, cb?.checked ? '1' : '0');
+      localStorage.setItem(key, (cb && cb.checked) ? '1' : '0');
     });
     _showStep('ready');
     // Update summary
@@ -371,27 +417,22 @@ document.addEventListener('DOMContentLoaded', () => {
       if (localStorage.getItem('jarvis_cat_integrations') !== '0') activePerms.push('Integraciones');
       permSummary.textContent = activePerms.length === 4 ? 'Todos activados' : activePerms.join(', ') || 'Ninguno';
     }
+  }
+
+  document.getElementById('auth-perms-accept-all')?.addEventListener('click', () => {
+    _saveAndGoToSummary(false);
   });
 
-  // Step 6: Ready -> Show confirmation dialog
+  document.getElementById('auth-perms-deny-all')?.addEventListener('click', () => {
+    _saveAndGoToSummary(true);
+  });
+
+  // Step 6: Ready -> Iniciar sistema directamente
   document.getElementById('auth-ready-btn')?.addEventListener('click', () => {
-    _showFinalConfirmation();
-  });
-
-  // Final confirmation dialog buttons
-  document.getElementById('auth-confirm-cancel')?.addEventListener('click', () => {
-    _hideFinalConfirmation();
-  });
-
-  document.getElementById('auth-confirm-accept')?.addEventListener('click', () => {
-    _hideFinalConfirmation();
     _completeOnboarding();
   });
 
-  // Close on overlay click
-  document.getElementById('auth-confirm-overlay')?.addEventListener('click', (e) => {
-    if (e.target === e.currentTarget) _hideFinalConfirmation();
-  });
+
 
   // Back buttons
   document.querySelectorAll('.auth-back-btn').forEach(btn => {

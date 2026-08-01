@@ -1,63 +1,62 @@
-# JARVIS — AI Personal Assistant for Windows
+# JARVIS — Asistente Personal de IA para Windows
 
 <div align="center">
 
-[![JARVIS](https://img.shields.io/badge/JARVIS-MK.II-00bfff?style=for-the-badge&logo=electron&logoColor=white)](https://github.com/echamo89-wq/Jarvis)
+[![JARVIS](https://img.shields.io/badge/JARVIS-v3.6.0-00bfff?style=for-the-badge&logo=electron&logoColor=white)](https://github.com/echamo89-wq/Jarvis)
 [![Electron](https://img.shields.io/badge/Electron-30.x-47848f?style=for-the-badge&logo=electron&logoColor=white)](https://www.electronjs.org/)
 [![Gemini](https://img.shields.io/badge/Gemini-API-4285f4?style=for-the-badge&logo=google&logoColor=white)](https://deepmind.google/technologies/gemini/)
-[![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
+[![License](https://img.shields.io/badge/License-GPLv3-blue?style=for-the-badge)](LICENSE)
 
-**A Stark-inspired holographic AI assistant with real-time voice, Windows automation, and deep system integration.**
+**Asistente holográfico de IA con voz en tiempo real, automatización de Windows e integración profunda del sistema.**
 
 </div>
 
 ---
 
-## Features
+## Funciones
 
-- **Real-time voice conversation** — Live WebSocket audio pipeline with Gemini. Speak and interrupt naturally.
-- **Windows automation** — Open apps, run PowerShell, control files and system settings.
-- **Web research** — Search the internet, fetch pages, and summarize information.
-- **Persistent memory** — Remembers your name, preferences, and context across sessions.
-- **Cognitive engines** — 9 integrated engines (identity, strategy, memory, energy, reflection, briefing, etc.)
-- **Holographic UI** — Animated arc reactor, premium message bubble with states, particle background.
-- **25+ tool integrations** — File system, browser automation, media control, system info, and more.
-- **100% local** — No cloud account required. Runs entirely on your machine.
+- **Conversación por voz en tiempo real** — Pipeline de audio en WebSocket con Gemini Live. Hablá e interrumpilo con naturalidad.
+- **Automatización de Windows** — Abrir apps, ejecutar PowerShell, controlar archivos y ajustes del sistema.
+- **Investigación web** — Búsqueda en internet, lectura de páginas y respuestas concisas con enlaces.
+- **Memoria persistente** — Recuerda tu nombre, preferencias y contexto entre sesiones.
+- **Motores cognitivos** — 9 motores integrados (identidad, estrategia, memoria, energía, reflexión, briefing, etc.).
+- **Análisis de imágenes** — Describe imágenes, responde sobre su contenido y puede aplicarlas como fondo de pantalla.
+- **UI holográfica** — Reactor animado, burbuja de mensaje premium con estados y fondo de partículas.
+- **25+ integraciones de herramientas** — Sistema de archivos, automatización del navegador, control multimedia, info del sistema y más.
+- **Local y seguro** — Tu API key se guarda cifrada en tu máquina. Sin cuentas ni suscripciones.
 
 ---
 
-## Quick Start
+## Inicio rápido
 
-### Prerequisites
+### Requisitos
 
-- [Node.js](https://nodejs.org/) v18 or higher
-- A **Gemini API Key** — get one free at [Google AI Studio](https://aistudio.google.com/apikey)
+- [Node.js](https://nodejs.org/) v18 o superior
+- Windows 10/11
+- Una **API Key de Gemini** — gratis en [Google AI Studio](https://aistudio.google.com/apikey)
 
-### Installation
+### Instalación
 
 ```bash
-# 1. Clone the repository
+# 1. Clonar el repositorio
 git clone https://github.com/echamo89-wq/Jarvis.git
-cd jarvis
+cd Jarvis
 
-# 2. Install root dependencies (Electron)
+# 2. Instalar dependencias (Electron)
 npm install
-
-# 3. Install server dependencies
-cd server && npm install && cd ..
 ```
 
-### Configuration
+### Configuración
 
-Copy `.env.example` to `.env` and add your Gemini API key:
+Copiá `.env.example` a `.env` y agregá tu API key de Gemini:
 
 ```env
 GEMINI_API_KEY=your_key_here
 ```
 
-You can also enter the API key directly from the app's Settings panel.
+También podés ingresar la API key directamente desde el panel de Configuración de la app.
 
-### Run
+### Ejecutar
 
 ```bash
 npm start
@@ -65,66 +64,73 @@ npm start
 
 ---
 
-## Architecture
+## Arquitectura
 
 ```
 Jarvis/
-├── main.js              # Electron main process
-├── preload.js           # Secure IPC bridge
-├── renderer.html        # Main UI shell
-├── splash.html          # Boot splash screen
+├── main.js              # Proceso principal de Electron
+├── preload.js           # Puente IPC seguro
+├── renderer.html        # Shell de la interfaz principal
+├── splash.html          # Pantalla de carga circular
 ├── css/
-│   └── style.css        # Holographic HUD styles
+│   └── style.css        # Estilos HUD holográficos
+├── assets/              # Recursos estáticos (logo, imágenes)
+├── config/              # Instrucción de sistema y protocolos
 ├── js/
 │   ├── Core/Connection/ # WebSocket + Gemini Live API
-│   ├── audio/           # Voice input/output pipeline
-│   ├── chat/            # Message rendering & typewriter
-│   ├── config/          # App configuration & system instruction
-│   ├── engines/         # JOS cognitive engines (9 modules)
-│   ├── tools/           # 25+ tool execution system
-│   ├── system/          # Error reporting, apps, PowerShell
-│   ├── ui/              # Task bubble, info panel
-│   └── state/           # Global reactive state store
-├── server/              # Local Express backend (auth, feedback, proxy)
-│   ├── routes/
-│   ├── middleware/
-│   └── data/
-└── main/                # Electron helper modules
+│   ├── audio/           # Pipeline de entrada/salida de voz
+│   ├── chat/            # Renderizado de mensajes y typewriter
+│   ├── config/          # Configuración de la app e instrucción de sistema
+│   ├── engines/         # Motores cognitivos JOS
+│   ├── memory/          # Memoria persistente, hechos y tareas
+│   ├── tools/           # Sistema de ejecución de herramientas
+│   ├── system/          # Reporte de errores, apps, PowerShell
+│   ├── ui/              # Burbuja de tareas, panel de info
+│   └── state/           # Store de estado global reactivo
+├── main/                # Módulos helpers de Electron
+├── tests/               # Tests (Vitest)
+└── docs/                # Página de documentación / landing
 ```
 
 ---
 
 ## Tech Stack
 
-| Layer | Technology |
+| Capa | Tecnología |
 | :--- | :--- |
-| Desktop shell | Electron 30 |
-| UI | Vanilla HTML/CSS/JS (ES Modules) |
-| AI | Google Gemini API (WebSocket Live) |
-| Backend | Express.js + SQLite |
-| Audio | Web Audio API + AudioWorklet |
-| Speech | Gemini Multimodal Live Audio |
+| Shell de escritorio | Electron 30 |
+| UI | HTML/CSS/JS vanilla (ES Modules) |
+| IA | Google Gemini API (WebSocket Live + REST) |
+| Audio | Web Audio API + PCM 24kHz |
+| Voz | Gemini Multimodal Live Audio (TTS dedicado) |
+| Tests | Vitest |
 
 ---
 
-## Building
-
-To build the Windows installer:
+## Compilar el instalador
 
 ```bash
 npm run build
 ```
 
-The installer will be created in the `dist/` directory.
+El instalador se genera en el directorio `dist/`.
 
 ---
 
-## Contributing
+## Redes sociales
 
-Pull requests are welcome. For major changes, please open an issue first to discuss what you'd like to change.
+- [YouTube — @JarvisJSS](https://www.youtube.com/@JarvisJSS)
+- [Instagram](https://www.instagram.com/jarvis_js_js/)
+- [TikTok — @jarvis_jjs](https://www.tiktok.com/@jarvis_jjs)
 
 ---
 
-## License
+## Contribuir
 
-This project is licensed under the [MIT License](LICENSE).
+Los pull requests son bienvenidos. Para cambios importantes, abrí un issue primero para discutir lo que querés modificar.
+
+---
+
+## Licencia
+
+Este proyecto está licenciado bajo la [GNU General Public License v3](LICENSE).

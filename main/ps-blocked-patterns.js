@@ -33,6 +33,13 @@ const PS_BLOCKED_PATTERNS = [
   /start-sleep(?!\s+-seconds\s+\d+)/i,
   /net\s+accounts/i,
   /new-object\s+(?!-comobject\s+wscript\.shell)/i,
+  /\[system\.io\.file\]/i, /\[system\.io\.stream/i, /\[system\.io\.directory\]/i,
+  /\[system\.net\.webclient\]/i, /\[system\.net\.httpwebrequest\]/i,
+  /\[convert\]::frombase64string/i, /\[system\.text\.encoding\]/i,
+  /\[system\.diagnostics\.process\]/i, /\[system\.management\.automa/i,
+  /\[microsoft\.win32\.registry/i, /\[system\.windows\.forms/i,
+  /get-childitem/i, /\bgci\b/i, /get-item/i, /\bgi\b/i,
+  /\bgdr\b/i, /\bgpt\b/i, /\bgpv\b/i, /\bgvv\b/i,
 ];
 
 const CMD_BLOCKED_PATTERNS = [

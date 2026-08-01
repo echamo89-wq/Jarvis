@@ -4,42 +4,43 @@ const _listeners = {};
 
 const _state = {
   machine: STATE.IDLE,
-  alwaysListen: true,
-  micActive: false,
   toolCount: 0,
   toolStartTime: null,
   waitingForResponse: false,
-  pendingMicActivation: false,
-  lastVolume: 0,
   activeSources: [],
-  lastMicEnergy: 0,
-  lastMicPacketTime: 0,
-  lastTranscriptionTime: 0,
   jarvisSpeakingSince: 0,
   isJarvisMuted: false,
   messageCount: 0,
   conversationHistory: [],
   startTime: 0,
   lastWsMessageTime: 0,
-  initialGreetingSent: false,
   isReconnectingIntentional: false,
-  speechEnergyThreshold: 500,
   userMemory: null,
-  _userMsgShown: false,
   _lastInputTranscript: '',
-  _inputAccum: '',
-  _lastUserTranscript: '',
-  _jarvisSpeechStarted: false,
-  _currentJarvisBubble: null,
   _currentTurnTextBuffer: '',
   _turnState: 'thinking',
   _thinkingPhaseStartTime: 0,
-  isExecutingTool: false,
   _turnHasAudio: false,
   _jarvisSpeechText: '',
   focusMode: true,
   isTtsSpeaking: false,
-  lastSpeechDetectedTime: 0
+  // Keys usadas en la app sin default anterior
+  _textInputMode: false,
+  _reconnectCooldown: false,
+  _meetingMode: false,
+  _turnTextShown: false,
+  _currentTurnTokenBuffer: '',
+  waitingForGreetingToFinish: false,
+  _lastPlaybackEnded: 0,
+  userVoice: 'Fenrir',
+  alwaysOn: false,
+  graphicsQuality: 'high',
+  _activeProvider: 'gemini',
+  _wsConnecting: false,
+  _wsReconnectPending: false,
+  _wsMaxRetriesExhausted: false,
+  _lastAskRepeat: '',
+  homeDir: ''
 };
 
 function _emit(key, value, prev) {
@@ -99,7 +100,7 @@ export const store = {
 
   reset() {
     Object.keys(_state).forEach(k => {
-      if (k === 'speechEnergyThreshold' || k === 'userMemory') return;
+      if (k === 'userMemory') return;
       _state[k] = typeof _state[k] === 'number' ? 0 :
                    typeof _state[k] === 'boolean' ? false :
                    Array.isArray(_state[k]) ? [] :
@@ -109,8 +110,10 @@ export const store = {
   }
 };
 
-// Global reference for non-module scripts (supervisor.js)
-window.getState = () => _state.machine;
-window.getCtx = (key) => key ? _state[key] : _state;
-window.setCtx = (key, value) => { store.set(key, value); };
-window.setJarvisState = (s) => store.setState(s === 'speaking' || s === 'talking' ? STATE.SPEAKING : s);
+// Global reference for non-module scripts (supervisor.js) — read-only wrappers
+if (typeof window !== 'undefined') {
+  window.getState = () => _state.machine;
+  window.getCtx = (key) => key ? _state[key] : undefined;
+  window.setCtx = (key, value) => { store.set(key, value); };
+  window.setJarvisState = (s) => store.setState(s === 'speaking' || s === 'talking' ? STATE.SPEAKING : s);
+}

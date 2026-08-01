@@ -1,15 +1,14 @@
-const { ipcMain, app } = require('electron');
+const { ipcMain, app, dialog, BrowserWindow } = require('electron');
+const { loadCredentials, saveCredentials } = require('./secure-storage');
 const path = require('path');
 const fs = require('fs');
-const { spawn, execFile } = require('child_process');
+const { execFile } = require('child_process');
 const crypto = require('crypto');
 const { PS_BLOCKED_PATTERNS, CMD_BLOCKED_PATTERNS } = require('./ps-blocked-patterns');
+const { getPowerShellHost } = require('./ps-host');
 
-let psProc = null;
-let psQueue = [];
-let psBusy = false;
-let psBuffer = '';
-let psRestarting = false;
+const PS_EXEC_TIMEOUT = 120000;
+const PS_HOST_READY_TIMEOUT = 10000;
 
 function _normalizeCommand(command, isPowerShell = true) {
   if (typeof command !== 'string') return '';
@@ -34,110 +33,145 @@ function _normalizeCommand(command, isPowerShell = true) {
   return clean;
 }
 
-function _startPsProc() {
-  if (psProc && psProc.exitCode === null) return;
-  if (psRestarting) return;
-  psProc = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', '-'], {
-    stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true
+async function checkExecutionPermission(command) {
+  let creds = {};
+  try {
+    creds = loadCredentials();
+  } catch (e) {}
+
+  if (creds.system_execution_allowed === 'all') {
+    return true;
+  }
+
+  const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+  const { response } = await dialog.showMessageBox(win, {
+    type: 'warning',
+    buttons: ['Denegar', 'Permitir una vez', 'Permitir siempre'],
+    defaultId: 1,
+    cancelId: 0,
+    title: '🔒 Jarvis — Solicitud de permiso',
+    message: '¿Permitir que Jarvis ejecute un comando en la terminal?',
+    detail: `Jarvis necesita ejecutar el siguiente comando para completar su tarea:\n\n${command.substring(0, 300)}${command.length > 300 ? '...' : ''}\n\n¿Qué significa cada opción?\n• "Denegar" — No ejecutar. Jarvis buscará otra forma de ayudar.\n• "Permitir una vez" — Ejecutar solo ahora. Jarvis volverá a preguntar.\n• "Permitir siempre" — Ejecutar sin preguntar de nuevo. Solo si confía plenamente.`,
+    noLink: true
   });
-  psBuffer = '';
-  psProc.stdout.on('data', (data) => { psBuffer += data.toString(); _checkPsResponses(); });
-  psProc.stderr.on('data', (data) => { psBuffer += data.toString(); _checkPsResponses(); });
-  psProc.on('exit', () => {
-    psProc = null;
-    if (psQueue.length > 0) {
-      psRestarting = true;
-      setTimeout(() => { psRestarting = false; _startPsProc(); }, 100);
-    }
-  });
+
+  if (response === 2) {
+    try {
+      creds.system_execution_allowed = 'all';
+      saveCredentials(creds);
+    } catch (e) {}
+    return true;
+  }
+  if (response === 1) {
+    return true;
+  }
+  return false;
 }
 
-function _checkPsResponses() {
-  while (psQueue.length > 0) {
-    const marker = psQueue[0].marker;
-    const endIdx = psBuffer.indexOf(marker);
-    if (endIdx === -1) break;
-    const output = psBuffer.substring(0, endIdx);
-    psBuffer = psBuffer.substring(endIdx + marker.length);
-    const item = psQueue.shift();
-    if (psQueue.length > 0) psBusy = true; else psBusy = false;
-    const isError = output.includes('___JARVIS_PS_ERR___');
-    const clean = output.replace(/___JARVIS_PS_ERR___/g, '').trim();
-    item.resolve({ success: !isError, output: clean || (isError ? 'Error' : '') });
+function _preWarmCmd() {
+  try {
+    const child = execFile('cmd.exe', ['/c', 'ver'], { timeout: 5000 }, () => {});
+    child.unref();
+  } catch (e) {}
+}
+
+async function _runPsHost(command) {
+  const host = getPowerShellHost();
+  try {
+    const readyPromise = host.init();
+    await Promise.race([
+      readyPromise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('PS host init timeout')), PS_HOST_READY_TIMEOUT))
+    ]);
+    return await host.execute(command, PS_EXEC_TIMEOUT);
+  } catch (e) {
+    return { success: false, output: `PS Host error: ${e.message}` };
   }
 }
 
-async function _runPsPersistent(command) {
-  _startPsProc();
-  const marker = `___JARVIS_END_${crypto.randomBytes(4).toString('hex')}___`;
-  const tmpFile = path.join(app.getPath('temp'), `jarvis_ps_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.ps1`);
-  fs.writeFileSync(tmpFile, `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8\n${command}`, 'utf8');
-  setTimeout(() => { try { fs.unlinkSync(tmpFile); } catch(e) {} }, 5000);
-
+function _runPsExecFile(command) {
   return new Promise((resolve) => {
-    psQueue.push({ resolve, marker });
-    if (psQueue.length === 1) psBusy = true;
-    psProc.stdin.write(`. '${tmpFile.replace(/'/g, "''")}'; if (!$?) { Write-Output '___JARVIS_PS_ERR___' }; Write-Output '${marker}'\n`);
-    setTimeout(() => {
-      const idx = psQueue.findIndex(q => q.marker === marker);
-      if (idx !== -1) {
-        psQueue.splice(idx, 1);
-        if (psQueue.length === 0) psBusy = false;
-        resolve({ success: false, output: 'ERR_TIMEOUT' });
-        try { fs.unlinkSync(tmpFile); } catch(e) {}
-      }
-    }, 60000);
+    const tmpFile = path.join(app.getPath('temp'), `jarvis_ps_${Date.now()}_${crypto.randomBytes(3).toString('hex')}.ps1`);
+    try {
+      fs.writeFileSync(tmpFile, `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8\n${command}`, 'utf8');
+    } catch(e) {
+      return resolve({ success: false, output: `Failed to write temp script: ${e.message}` });
+    }
+
+    const child = execFile('powershell.exe', [
+      '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', tmpFile
+    ], { timeout: PS_EXEC_TIMEOUT, encoding: 'utf8', maxBuffer: 4 * 1024 * 1024 }, (error, stdout, stderr) => {
+      try { fs.unlinkSync(tmpFile); } catch(e) {}
+      const hasRealError = stderr && stderr.trim().length > 0;
+      resolve(error && hasRealError
+        ? { success: false, output: stderr.trim() }
+        : { success: true, output: stdout.trim() });
+    });
   });
 }
 
-function registerPsIpc(cleanupCallback) {
-  ipcMain.handle('run-powershell', async (event, command) => {
-    const isWin = process.platform === 'win32';
-    if (!isWin) {
-      return new Promise((resolve) => {
-        execFile('/bin/sh', ['-c', command], { timeout: 30000, maxBuffer: 2 * 1024 * 1024 }, (error, stdout, stderr) => {
-          resolve(error ? { success: false, output: stderr.trim() || error.message } : { success: true, output: stdout.trim() });
-        });
-      });
-    }
+async function _runPowerShell(command) {
+  const isWin = process.platform === 'win32';
+  if (!isWin) {
+    return { success: false, output: 'ERR_PLATFORM_UNSUPPORTED: PowerShell no está disponible en esta plataforma.' };
+  }
+
+  let creds = {};
+  try { creds = loadCredentials(); } catch (e) {}
+  const systemUnrestricted = creds.system_execution_allowed === 'all';
+
+  if (!systemUnrestricted) {
     const normalized = _normalizeCommand(command, true);
-    const isBlocked = PS_BLOCKED_PATTERNS.some(p => p.test(normalized));
-    if (isBlocked) {
+    const isBlockedRaw = PS_BLOCKED_PATTERNS.some(p => p.test(command));
+    const isBlockedNorm = PS_BLOCKED_PATTERNS.some(p => p.test(normalized));
+    if (isBlockedRaw || isBlockedNorm) {
       return { success: false, output: 'ERR_BLOCKED_BY_SECURITY_POLICY' };
     }
-    if (!command.includes('@"') && !command.includes("@'")) {
-      return await _runPsPersistent(command);
+  }
+
+  const allowed = await checkExecutionPermission(command);
+  if (!allowed) {
+    return { success: false, output: 'ERR_PERMISSION_DENIED: Ejecución cancelada por el usuario.' };
+  }
+
+  try {
+    const hostResult = await _runPsHost(command);
+    if (hostResult.success || !hostResult.output) {
+      return hostResult;
     }
-    return new Promise((resolve) => {
-      const tmpFile = path.join(app.getPath('temp'), `jarvis_ps_${Date.now()}.ps1`);
-      try {
-        fs.writeFileSync(tmpFile, `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8\n${command}`, 'utf8');
-      } catch(e) {
-        return resolve({ success: false, output: `Failed to write temp script: ${e.message}` });
-      }
-      const args = ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', tmpFile];
-      const child = execFile('powershell.exe', args, { timeout: 30000, encoding: 'utf8', maxBuffer: 2 * 1024 * 1024 }, (error, stdout, stderr) => {
-        try { fs.unlinkSync(tmpFile); } catch(e) {}
-        const hasRealError = stderr && stderr.trim().length > 0;
-        resolve(error && hasRealError ? { success: false, output: stderr.trim() } : { success: true, output: stdout.trim() });
-      });
-      if (cleanupCallback) cleanupCallback(child);
-    });
+    // El host falló (timeout, proceso caído, script inválido): intentar ejecución directa
+    return await _runPsExecFile(command);
+  } catch (e) {
+    return await _runPsExecFile(command);
+  }
+}
+
+function registerPsIpc(cleanupCallback) {
+  _preWarmCmd();
+
+  ipcMain.handle('run-powershell', async (event, command) => {
+    return await _runPowerShell(command);
   });
 
   ipcMain.handle('run-cmd', async (event, command) => {
     const isWin = process.platform === 'win32';
     if (!isWin) {
-      return new Promise((resolve) => {
-        execFile('/bin/sh', ['-c', command], { timeout: 6000 }, (error, stdout, stderr) => {
-          resolve(error ? { success: false, output: stderr.trim() || error.message } : { success: true, output: stdout.trim() });
-        });
-      });
+      return { success: false, output: 'ERR_PLATFORM_UNSUPPORTED: cmd.exe no está disponible en esta plataforma.' };
     }
-    const normalized = _normalizeCommand(command, false);
-    const isBlocked = CMD_BLOCKED_PATTERNS.some(p => p.test(normalized));
-    if (isBlocked) {
-      return { success: false, output: 'ERR_BLOCKED_BY_SECURITY_POLICY' };
+    let creds = {};
+    try { creds = loadCredentials(); } catch (e) {}
+    const systemUnrestricted = creds.system_execution_allowed === 'all';
+    if (!systemUnrestricted) {
+      const normalized = _normalizeCommand(command, false);
+      const isBlockedRaw = CMD_BLOCKED_PATTERNS.some(p => p.test(command));
+      const isBlockedNorm = CMD_BLOCKED_PATTERNS.some(p => p.test(normalized));
+      if (isBlockedRaw || isBlockedNorm) {
+        return { success: false, output: 'ERR_BLOCKED_BY_SECURITY_POLICY' };
+      }
+    }
+    const allowed = await checkExecutionPermission(command);
+    if (!allowed) {
+      return { success: false, output: 'ERR_PERMISSION_DENIED: Ejecución cancelada por el usuario.' };
     }
     return new Promise((resolve) => {
       const child = execFile('cmd.exe', ['/c', command], { timeout: 6000, encoding: 'utf8' }, (error, stdout, stderr) => {
@@ -153,12 +187,9 @@ function registerPsIpc(cleanupCallback) {
   });
 
   return {
-    cleanupPs: () => {
-      if (psProc && psProc.exitCode === null) {
-        try { psProc.stdin.write("exit\n"); } catch (e) {}
-        try { psProc.kill(); } catch (e) {}
-        psProc = null;
-      }
+    cleanupPs: async () => {
+      const host = getPowerShellHost();
+      await host.shutdown();
     }
   };
 }

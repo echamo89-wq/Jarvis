@@ -1,60 +1,58 @@
+import { store } from '../../state/store.js';
 import { executePowerShellCommand } from '../../system/powershell.js';
-import { fetchUrlContent } from '../web.js';
+import { addLocalReminder } from '../../system/reminders.js';
 
-async function _safeReadFile(path) {
-  return await window.electronAPI.fileRead(path);
-}
-
-async function _safeWriteFile(path, content) {
-  return await window.electronAPI.fileWrite(path, content);
-}
-
-async function _safeDeleteFile(path) {
-  return await window.electronAPI.fileDelete(path);
-}
-
-async function _safeListDir(path, pattern) {
-  return await window.electronAPI.fileList(path, pattern || '');
-}
-
-async function _safeFileInfo(path) {
-  return await window.electronAPI.fileInfo(path);
-}
+// File system adapter
+import { execute, toLegacyResult, toLegacyWithData, processDocument } from './adapter-file-system.js';
 
 export async function handleFileOperation(call) {
   const op = call.args.operation || '';
-  let path = call.args.path || '';
-  const content = call.args.content || '';
-  const dest = call.args.destination || '';
-  const pattern = call.args.pattern || '';
-  const actualHome = window.electronAPI?.getHomeDir?.() || 'C:\\Users\\Admin';
-  path = path.replace(/C:\\Users\\[^\\]+/i, actualHome);
+  const opts = call.args;
+  const path = opts.path || '';
 
-  if (op === 'list') return await _safeListDir(path, pattern);
-  if (op === 'read') return await _safeReadFile(path);
-  if (op === 'write') return await _safeWriteFile(path, content);
-  if (op === 'delete') return await _safeDeleteFile(path);
-  if (op === 'info') return await _safeFileInfo(path);
+  // Map legacy operations to new system
+  const opMap = {
+    list: 'list',
+    summary: 'summary',
+    read: 'read',
+    write: 'write',
+    delete: 'delete',
+    delete_folder: 'delete_folder',
+    info: 'inspect',
+    media: 'search_media',
+    multimedia: 'search_media',
+    move: 'move',
+    copy: 'copy',
+    find: 'search',
+    search: 'search',
+    folder: 'search',
+    find_folder: 'search',
+    inspect: 'inspect',
+  };
+
+  const newOp = opMap[op];
+  if (!newOp) return { success: false, output: `Operación desconocida: ${op}` };
+
+  if (op === 'folder' || op === 'find_folder') {
+    const result = await execute({ operation: 'search', args: { query: opts.pattern || '*', roots: [path], searchMode: 'folder', maxResults: opts.maxResults || 30 } });
+    if (!result.success) return toLegacyResult(result);
+    const items = result.data?.results || [];
+    if (items.length === 0) return { success: true, output: `No se encontraron carpetas con "${opts.pattern || '*'}" en ${path}` };
+    return { success: true, output: `📁 ${items.length} carpeta(s) encontradas:\n${items.map(r => r.file || r).join('\n')}` };
+  }
+
+  if (op === 'media' || op === 'multimedia') {
+    const result = await execute({ operation: 'search_media', args: { path, mediaType: opts.mediaType || opts.type || 'all', maxResults: opts.maxResults } });
+    return toLegacyWithData(result);
+  }
+
   if (op === 'move' || op === 'copy') {
-    const actualHome = window.electronAPI?.getHomeDir?.() || 'C:\\Users\\Admin';
-    const src = path.replace(/C:\\Users\\[^\\]+/i, actualHome);
-    const dst = dest.replace(/C:\\Users\\[^\\]+/i, actualHome);
-    try {
-      const srcContent = await _safeReadFile(src);
-      if (!srcContent.success) return srcContent;
-      const wrote = await _safeWriteFile(dst + (dest.endsWith('\\') ? path.split('\\').pop() : ''), srcContent.output);
-      if (!wrote.success) return wrote;
-      if (op === 'move') await _safeDeleteFile(src);
-      return { success: true, output: `${op === 'move' ? 'Movido' : 'Copiado'}: ${src} → ${dst}` };
-    } catch (e) {
-      return { success: false, output: `Error en ${op}: ${e.message}` };
-    }
+    const result = await execute({ operation: op, args: { path, destination: opts.destination } });
+    return toLegacyResult(result);
   }
-  if (op === 'find') {
-    const psCmd = `Get-ChildItem -Path "${path}" -Filter "${pattern || '*'}*" -Recurse -ErrorAction SilentlyContinue | Select-Object FullName, Length | Format-Table -AutoSize | Out-String -Width 4096`;
-    return await executePowerShellCommand(psCmd, `file_${op}`);
-  }
-  return { success: false, output: `Operación desconocida: ${op}` };
+
+  const result = await execute({ operation: newOp, args: { path, content: opts.content, pattern: opts.pattern, maxResults: opts.maxResults } });
+  return toLegacyResult(result);
 }
 
 export async function handleComputerAction(call) {
@@ -63,17 +61,19 @@ export async function handleComputerAction(call) {
   const windowTitle = call.args.windowTitle || '';
   let psCmd = '';
   if (action === 'type_text') {
-    const escaped = keys.replace(/"/g, '`"').replace(/~/g, '~~').replace(/\+/g, '{+}').replace(/\^/g, '{^}').replace(/%/g, '{%}');
+    const escaped = keys.replace(/["$`]/g, '`$&').replace(/~/g, '~~').replace(/\+/g, '{+}').replace(/\^/g, '{^}').replace(/%/g, '{%}');
     psCmd = `$wshell = New-Object -ComObject wscript.shell; $wshell.SendKeys("${escaped}")`;
   } else if (action === 'press_keys') {
-    psCmd = `$wshell = New-Object -ComObject wscript.shell; $wshell.SendKeys("${keys}")`;
+    const escaped = keys.replace(/["$`]/g, '`$&');
+    psCmd = `$wshell = New-Object -ComObject wscript.shell; $wshell.SendKeys("${escaped}")`;
   } else if (action === 'clipboard_get') {
     psCmd = `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.Clipboard]::GetText()`;
   } else if (action === 'clipboard_set') {
     const escaped = keys.replace(/'/g, "''");
     psCmd = `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.Clipboard]::SetText('${escaped}'); "Texto copiado al portapapeles."`;
   } else if (action === 'focus_window') {
-    psCmd = `(Get-Process | Where-Object { $_.MainWindowTitle -match '${windowTitle.replace(/'/g, "''")}' }).MainWindowHandle | ForEach-Object { Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class Win32 { [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd); }'; [Win32]::SetForegroundWindow($_) }; "${windowTitle} enfocado."`;
+    const safeTitle = windowTitle.replace(/[;&|$()`']/g, '');
+    psCmd = `(Get-Process | Where-Object { $_.MainWindowTitle -match '${safeTitle}' }).MainWindowHandle | ForEach-Object { Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class Win32 { [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd); }'; [Win32]::SetForegroundWindow($_) }; '${safeTitle} enfocado.'`;
   } else if (action === 'screenshot') {
     psCmd = `Add-Type -AssemblyName System.Windows.Forms,System.Drawing; $s=[Windows.Forms.Screen]::PrimaryScreen.Bounds; $b=New-Object Drawing.Bitmap($s.Width,$s.Height); $g=[Drawing.Graphics]::FromImage($b); $g.CopyFromScreen($s.Location,[Drawing.Point]::Empty,$s.Size); $p="$env:USERPROFILE\\Desktop\\JARVIS_ss_$(Get-Date -f yyyyMMdd_HHmmss).png"; $b.Save($p); $g.Dispose(); $b.Dispose(); "Captura: $p"`;
   } else return { success: false, output: `Acción desconocida: ${action}` };
@@ -108,62 +108,104 @@ export async function handleDesktopAction(call) {
 }
 
 export async function handleSetReminder(call) {
-  const reminder = call.args.reminder || '';
+  const reminder = (call.args.reminder || '').replace(/[;&|$()`]/g, '').trim();
   const time = call.args.time || '';
   if (!reminder || !time) return { success: false, output: 'Se requiere texto y hora del recordatorio.' };
 
   const now = new Date();
   let targetDate = null;
-  const inMatch = time.match(/in\s+(\d+)\s+(minute|minutes|min|hour|hours)/i);
-  const atMatch = time.match(/at\s+(\d{1,2}):(\d{2})/i);
-  const tomorrowAt = time.match(/tomorrow\s+at\s+(\d{1,2}):(\d{2})/i);
-  if (time.includes('now') || time.includes('ahora')) targetDate = new Date(now.getTime() + 60000);
-  else if (inMatch) {
+
+  // Parseo de hora flexible (español e inglés)
+  const inMatch = time.match(/(?:en|in)\s+(\d+)\s+(minuto|minutos|minute|minutes|min|hora|horas|hour|hours)/i);
+  const atMatch = time.match(/(?:a las?|at)\s+(\d{1,2})(?:[:h](\d{2})?)?(?:\s*(am|pm))?/i);
+  const tomorrowAt = time.match(/(?:mañana|tomorrow)(?:\s+a las?|\s+at)?\s+(\d{1,2})(?:[:h](\d{2})?)?/i);
+  const inXMin = time.match(/(\d+)\s+(minuto|min|minutos|minutes)/i);
+  const inXHour = time.match(/(\d+)\s+(hora|hour|horas|hours)/i);
+
+  if (time.match(/ahora|now/i)) {
+    targetDate = new Date(now.getTime() + 60000);
+  } else if (inMatch) {
     const n = parseInt(inMatch[1]);
-    targetDate = inMatch[2].startsWith('hour') ? new Date(now.getTime() + n * 3600000) : new Date(now.getTime() + n * 60000);
+    const unit = inMatch[2].toLowerCase();
+    targetDate = (unit.startsWith('hora') || unit.startsWith('hour'))
+      ? new Date(now.getTime() + n * 3600000)
+      : new Date(now.getTime() + n * 60000);
+  } else if (inXHour) {
+    targetDate = new Date(now.getTime() + parseInt(inXHour[1]) * 3600000);
+  } else if (inXMin) {
+    targetDate = new Date(now.getTime() + parseInt(inXMin[1]) * 60000);
   } else if (tomorrowAt) {
-    targetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, parseInt(tomorrowAt[1]), parseInt(tomorrowAt[2]));
+    const h = parseInt(tomorrowAt[1]);
+    const m = parseInt(tomorrowAt[2] || '0');
+    targetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, h, m);
   } else if (atMatch) {
-    targetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), parseInt(atMatch[1]), parseInt(atMatch[2]));
+    let h = parseInt(atMatch[1]);
+    const m = parseInt(atMatch[2] || '0');
+    const ampm = (atMatch[3] || '').toLowerCase();
+    if (ampm === 'pm' && h < 12) h += 12;
+    if (ampm === 'am' && h === 12) h = 0;
+    targetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m);
     if (targetDate <= now) targetDate.setDate(targetDate.getDate() + 1);
   } else {
     try { targetDate = new Date(time); } catch (e) {}
   }
+
   if (!targetDate || isNaN(targetDate.getTime())) {
-    return { success: false, output: `No se pudo interpretar la hora: "${time}". Usa formato "in X minutes/hours", "at HH:MM", "tomorrow at HH:MM".` };
+    return { success: false, output: `No pude entender la hora: "${time}". Di por ejemplo: "en 30 minutos", "a las 18:00", "mañana a las 9".` };
   }
-  const delayMs = targetDate.getTime() - now.getTime();
-  if (delayMs < 30000) targetDate = new Date(now.getTime() + 30000);
-  const formattedTarget = targetDate.toLocaleString();
-  const psCmd = `$action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -Command \\"& {Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show('${reminder.Replace("'", "''")}','Recordatorio - JARVIS','OK','Information')}\\"\"; $trigger = New-ScheduledTaskTrigger -Once -At '${targetDate.toISOString()}'; $user = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name; Register-ScheduledTask -TaskName "JARVIS_Reminder_$(Get-Date -f yyyyMMdd_HHmmss)" -Action $action -Trigger $trigger -User $user -Force -ErrorAction Stop | Out-Null; "Recordatorio programado para: ${formattedTarget}"`;
-  const result = await executePowerShellCommand(psCmd, 'set_reminder');
-  if (result.success) result.output = `⏰ Recordatorio programado para ${formattedTarget}: ${reminder}`;
-  return result;
+  if (targetDate.getTime() - now.getTime() < 30000) {
+    targetDate = new Date(now.getTime() + 30000);
+  }
+
+  const formattedTarget = targetDate.toLocaleString('es', { dateStyle: 'medium', timeStyle: 'short' });
+
+  // Guardar localmente (sin PowerShell ni Defender)
+  const newReminder = addLocalReminder(reminder, targetDate);
+
+  return {
+    success: true,
+    output: `⏰ Recordatorio guardado: "${reminder}" para el ${formattedTarget}. Te avisaré con una alerta en pantalla cuando llegue el momento.`
+  };
 }
 
+const _activeTimers = new Map();
+
 export async function handleSetTimer(call) {
-  const label = call.args.label || 'Temporizador';
-  const duration = call.args.duration || 0;
-  if (duration <= 0) return { success: false, output: 'La duración debe ser mayor a 0 segundos.' };
-  const psCmd = `Start-Sleep -Seconds ${duration}; Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show('${label.Replace("'","''")}','⏰ JARVIS Timer','OK','Information'); "⏰ ${label}: ${duration}s completado."`;
-  const result = await executePowerShellCommand(psCmd, 'set_timer');
-  if (result.success) result.output = `⏰ Temporizador "${label}" iniciado por ${duration}s. Te avisaré cuando termine.`;
-  return result;
+  const label = (call.args.label || 'Temporizador').replace(/[;&|$()`]/g, '').trim();
+  const duration = parseInt(call.args.duration || 0, 10);
+  if (isNaN(duration) || duration <= 0) return { success: false, output: 'La duración debe ser mayor a 0 segundos.' };
+
+  // Disparar en segundo plano sin bloquear la respuesta
+  const timerId = setTimeout(async () => {
+    try {
+      if (window.electronAPI?.showNotification) {
+        window.electronAPI.showNotification('⏰ Temporizador JARVIS', `¡El temporizador "${label}" ha terminado!`);
+      }
+    } catch (e) {
+      _log('error', `Error en temporizador "${label}": ${e.message}`);
+    }
+  }, duration * 1000);
+
+  _activeTimers.set(`${label}_${Date.now()}`, timerId);
+
+  const mins = Math.floor(duration / 60);
+  const secs = duration % 60;
+  const timeText = mins > 0 ? `${mins} min${secs > 0 ? ` ${secs}s` : ''}` : `${secs}s`;
+
+  return {
+    success: true,
+    output: `⏰ Temporizador "${label}" configurado para ${timeText}. Te avisaré apenas termine.`
+  };
 }
 
 export async function handleProcessFile(call) {
   const path = call.args.path || '';
   const format = call.args.format || '';
   if (!path) return { success: false, output: 'No se especificó ruta de archivo.' };
-  const ext = format || path.split('.').pop().toLowerCase();
-  let psCmd = '';
-  if (ext === 'txt' || ext === 'text') psCmd = `Get-Content -Path "${path}" -Raw -ErrorAction Stop`;
-  else if (ext === 'csv') psCmd = `Import-Csv -Path "${path}" -ErrorAction Stop | Format-Table -AutoSize | Out-String -Width 4096`;
-  else if (ext === 'docx' || ext === 'doc') psCmd = `Add-Type -AssemblyName System.IO.Compression; $zip=[IO.Compression.ZipFile]::OpenRead("${path}"); $e=$zip.Entries|Where-Object{$_.Name -eq 'word/document.xml'};if($e){$sr=new-object IO.StreamReader($e.Open());$xml=[xml]$sr.ReadToEnd();$sr.Close();$zip.Dispose();$xml.document.body.'#text' -join ' '}else{'No se pudo extraer texto.'}; $zip.Dispose()`;
-  else if (ext === 'xlsx' || ext === 'xls') psCmd = `Add-Type -AssemblyName System.IO.Compression; $zip=[IO.Compression.ZipFile]::OpenRead("${path}"); $e=$zip.Entries|Where-Object{$_.Name -eq 'xl/sharedStrings.xml'};if($e){$sr=new-object IO.StreamReader($e.Open());$xml=[xml]$sr.ReadToEnd();$sr.Close();$zip.Dispose();$xml.sst.si|ForEach-Object{$_.t}}else{'No se pudo extraer texto.'}`;
-  else if (ext === 'zip') psCmd = `Add-Type -AssemblyName System.IO.Compression; $zip=[IO.Compression.ZipFile]::OpenRead("${path}"); $zip.Entries|Select-Object Name,Length|Format-Table -AutoSize|Out-String -Width 4096; $zip.Dispose()`;
-  else if (ext === 'pdf') psCmd = `Add-Type -AssemblyName System.IO.Compression; try{$content=Get-Content -Path "${path}" -Raw -Encoding Byte -TotalCount 100KB; $text=[System.Text.Encoding]::UTF8.GetString($content); if($text -match '(?<=stream\\s).*?(?=\\nendstream)' ){$text} else {'PDF leído (${path}) - contenido binario'}}catch{'No se pudo leer el PDF'}`;
-  else if (ext === 'image' || ext === 'png' || ext === 'jpg' || ext === 'jpeg' || ext === 'bmp') psCmd = `Add-Type -AssemblyName System.Drawing; $img=[Drawing.Image]::FromFile("${path}"); "Imagen: $($img.Width)x$($img.Height) px, Formato: $($img.RawFormat)" ; $img.Dispose()`;
-  else psCmd = `Get-Content -Path "${path}" -Raw -ErrorAction Stop | Select-Object -First 100`;
-  return await executePowerShellCommand(psCmd, `process_file_${ext}`);
+
+  const result = await processDocument(path, format);
+  return {
+    success: result.success,
+    output: result.data?.content || result.message || (result.success ? 'Archivo procesado.' : 'Error al procesar.'),
+  };
 }

@@ -49,8 +49,4 @@ __pycache__/
 
 # ─── Local promo & dev files ─────────────────────────────────────────────────
 JARVIS_PROMO_HIPHOP.csv
-excluir_antivirus.bat
-excluir_antivirus.ps1
-reset_new_user.bat
-start_jarvis.bat
 ui_logs.txt

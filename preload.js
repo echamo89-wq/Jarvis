@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   showNotification: (title, body) => ipcRenderer.invoke('show-notification', { title, body }),
   fetchUrl: (url, raw) => ipcRenderer.invoke('fetch-url', url, raw),
   getSystemTime: () => ipcRenderer.invoke('get-system-time'),
+  getSystemInfo: () => ipcRenderer.invoke('get-system-info'),
   wsConnect: () => ipcRenderer.invoke('ws-connect'),
   wsSend: (data) => ipcRenderer.invoke('ws-send', data),
   wsClose: () => ipcRenderer.invoke('ws-close'),
@@ -38,6 +39,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   checkApiKey: () => ipcRenderer.invoke('check-api-key'),
   setupGeminiKey: (key) => ipcRenderer.invoke('setup-gemini-key', key),
   geminiTextChat: (opts) => ipcRenderer.invoke('gemini-text-chat', opts),
+  geminiTts: (opts) => ipcRenderer.invoke('gemini-tts', opts),
   getHomeDir: () => ipcRenderer.invoke('get-home-dir'),
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   startOAuthServer: (port) => ipcRenderer.invoke('start-oauth-server', port),
@@ -57,12 +59,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   fileRead: (filePath) => ipcRenderer.invoke('file-read', filePath),
   fileWrite: (filePath, content) => ipcRenderer.invoke('file-write', filePath, content),
   fileDelete: (filePath) => ipcRenderer.invoke('file-delete', filePath),
+  fileDeleteFolder: (filePath) => ipcRenderer.invoke('file-delete-folder', filePath),
   fileList: (dirPath, pattern) => ipcRenderer.invoke('file-list', dirPath, pattern),
   fileInfo: (filePath) => ipcRenderer.invoke('file-info', filePath),
   fileFind: (dirPath, pattern, maxResults) => ipcRenderer.invoke('file-find', dirPath, pattern, maxResults),
   fileSummary: (dirPath) => ipcRenderer.invoke('file-summary', dirPath),
   fileMediaFind: (dirPath, mediaType, maxResults) => ipcRenderer.invoke('file-media-find', dirPath, mediaType, maxResults),
+  createDocument: (args) => ipcRenderer.invoke('create-document', args),
   setWallpaper: (type, value) => ipcRenderer.invoke('set-wallpaper', type, value),
+  saveImageFile: (opts) => ipcRenderer.invoke('save-image-file', opts),
+
 
   // ─── Secure Credential Storage (encrypted, never in localStorage) ────
   secureCredentialGet: (key) => ipcRenderer.invoke('secure-credential-get', key),
@@ -80,6 +86,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   clearStorage: () => ipcRenderer.invoke('clear-storage'),
   remindersFileRead: () => ipcRenderer.invoke('reminders-file-read'),
   remindersFileWrite: (data) => ipcRenderer.invoke('reminders-file-write', data),
+  startProcess: (target) => ipcRenderer.invoke('start-process', target),
   findApp: (opts) => ipcRenderer.invoke('find-app', opts),
   launchUwp: (appId) => ipcRenderer.invoke('launch-uwp', appId),
   scanApps: () => ipcRenderer.invoke('scan-apps'),
@@ -124,8 +131,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('update-downloaded', h);
   },
 
+  // ─── App Launch & Process Tracking (direct spawn, no shell) ───
+  launchExec: (exePath) => ipcRenderer.invoke('launch-exec', exePath),
+  checkProcess: (opts) => ipcRenderer.invoke('check-process', opts),
+
   // ─── YouTube Download (yt-dlp nativo con progreso real) ───
   youtubeDownload: (args) => ipcRenderer.invoke('youtube-download', args),
+  youtubeUploadFile: (opts) => ipcRenderer.invoke('youtube-upload-file', opts),
 
   showConfirmDialog: (message) => ipcRenderer.invoke('show-confirm-dialog', message),
   onYoutubeProgress: (callback) => {
@@ -145,8 +157,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('splash-done', h);
     return () => ipcRenderer.removeListener('splash-done', h);
   },
+  onSplashError: (callback) => {
+    const h = (_e, errorMsg) => callback(errorMsg);
+    ipcRenderer.on('splash-error', h);
+    return () => ipcRenderer.removeListener('splash-error', h);
+  },
   splashReady: () => ipcRenderer.send('splash-ready'),
   splashFinished: () => ipcRenderer.send('splash-finished'),
   getPlatform: () => (typeof process !== 'undefined' ? process.platform : 'win32'),
-  getAppVersionSync: () => ipcRenderer.invoke('get-app-version')
+  getAppVersionSync: () => ipcRenderer.invoke('get-app-version'),
+  reportBootProgress: (pct, label) => ipcRenderer.send('renderer-boot-progress', pct, label),
+  reportBootError: (errorMsg) => ipcRenderer.send('renderer-boot-error', errorMsg)
 });

@@ -51,7 +51,7 @@ function _playChunk(base64Data) {
       if (current.length === 0) _onSpeechEnd();
     }
     _log('warn', `Safety timeout for blob ${base64Data.length}`);
-  }, 30000);
+  }, Math.max(30000, audioBuffer.duration * 1000 + 5000));
   _safetyTimeouts.push(safetyTimeout);
   source.onended = () => {
     clearTimeout(safetyTimeout);
@@ -84,7 +84,7 @@ export function playPCMChunk(base64Data) {
 function _onSpeechEnd() {
   store.set('jarvisSpeakingSince', 0);
   if (store.get('toolCount') > 0 || store.get('isJarvisMuted')) return;
-  store.setState(store.get('micActive') ? STATE.LISTENING : STATE.IDLE);
+  store.setState(STATE.IDLE);
 }
 
 export function stopAudioPlayback() {
@@ -146,3 +146,102 @@ export function playSystemSound(type) {
     _log('warn', `SFX error: ${e.message}`);
   }
 }
+
+// Hablar con la MISMA voz de Gemini del WebSocket (síntesis REST + pipeline PCM)
+export async function speakWithGeminiVoice(text) {
+  if (store.get('isJarvisMuted')) return;
+  const cleaned = (text || '')
+    .replace(/<(?:think|thinking)>[\s\S]*?<\/\1>/gi, '')
+    .replace(/[*#_`]/g, '')
+    .trim();
+  if (!cleaned) return;
+  const speechText = cleaned.length > 1200 ? cleaned.slice(0, 1200) + '…' : cleaned;
+  stopAudioPlayback();
+  if (!window.electronAPI?.geminiTts) {
+    _log('warn', 'geminiTts no disponible — usando voz local');
+    speakLocalText(speechText);
+    return;
+  }
+  try {
+    const voice = store.get('userVoice') || 'Fenrir';
+    const result = await window.electronAPI.geminiTts({ text: speechText, voice });
+    if (!result?.success || !result?.audioBase64) {
+      throw new Error(result?.error || 'TTS falló');
+    }
+    const raw = atob(result.audioBase64);
+    let pcmBase64 = result.audioBase64;
+    if (raw.length > 44 &&
+        raw.charCodeAt(0) === 0x52 && raw.charCodeAt(1) === 0x49 &&
+        raw.charCodeAt(2) === 0x46 && raw.charCodeAt(3) === 0x46) {
+      let chunked = '';
+      for (let i = 44; i < raw.length; i += 8192) {
+        const slice = raw.slice(i, i + 8192);
+        let bin = '';
+        for (let j = 0; j < slice.length; j++) bin += String.fromCharCode(slice.charCodeAt(j));
+        chunked += bin;
+      }
+      pcmBase64 = btoa(chunked);
+      _log('info', 'Header WAV removido — PCM 24kHz');
+    }
+    playPCMChunk(pcmBase64);
+  } catch (err) {
+    _log('warn', `Gemini TTS falló (${err.message}) — usando voz local`);
+    speakLocalText(speechText);
+  }
+}
+
+export function speakLocalText(text) {
+  stopAudioPlayback();
+  if (typeof window.speechSynthesis === 'undefined') return;
+  window.speechSynthesis.cancel();
+  
+  if (!text) return;
+  const cleaned = text.replace(/<think>[\s\S]*?<\/think>/gi, '')
+                      .replace(/[*#_`]/g, '')
+                      .trim();
+  if (!cleaned) return;
+  
+  const utterance = new SpeechSynthesisUtterance(cleaned);
+  const selectedVoice = localStorage.getItem('jarvis_local_voice');
+  if (selectedVoice) {
+    const voices = window.speechSynthesis.getVoices();
+    const voice = voices.find(v => v.name === selectedVoice);
+    if (voice) utterance.voice = voice;
+  }
+  
+  utterance.onstart = () => {
+    store.setState(STATE.SPEAKING);
+    store.set('isTtsSpeaking', true);
+  };
+  utterance.onend = () => {
+    store.set('isTtsSpeaking', false);
+    _onSpeechEnd();
+  };
+  utterance.onerror = () => {
+    store.set('isTtsSpeaking', false);
+    _onSpeechEnd();
+  };
+  window.speechSynthesis.speak(utterance);
+}
+
+// Auto-resume AudioContext on first user interaction to satisfy browser autoplay policies
+function _setupAutoplayHandler() {
+  const resume = () => {
+    initAudio();
+    if (audioCtx && audioCtx.state === 'suspended') {
+      audioCtx.resume().then(() => {
+        _log('info', 'AudioContext reanudado con éxito por interacción del usuario');
+      }).catch(e => _log('warn', `Auto-resume falló: ${e.message}`));
+    }
+    // Remove listeners after first interaction
+    document.removeEventListener('click', resume);
+    document.removeEventListener('keydown', resume);
+    document.removeEventListener('touchstart', resume);
+  };
+  document.addEventListener('click', resume);
+  document.addEventListener('keydown', resume);
+  document.addEventListener('touchstart', resume);
+}
+
+_setupAutoplayHandler();
+

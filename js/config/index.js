@@ -45,12 +45,11 @@ const _DEFAULTS = {
   jarvis_voice: 'Fenrir',
   jarvis_length: 'normal',
   jarvis_fontsize: '2',
-  jarvis_sfx: 'true',
   jarvis_show_diag: 'true',
   jarvis_anims: 'true',
   jarvis_vad_threshold: '100',
+  jarvis_interrupt_mode: 'true',
   jarvis_theme: 'dark',
-  jarvis_always_on: 'false',
   jarvis_graphics: 'high'
 };
 
@@ -74,19 +73,18 @@ export async function loadConfig() {
     if (!localStorage.getItem(k)) localStorage.setItem(k, _DEFAULTS[k]);
   });
 
-  const vad = parseInt(localStorage.getItem('jarvis_vad_threshold') || '300');
-  store.set('speechEnergyThreshold', vad);
   const voice = localStorage.getItem('jarvis_voice') || 'Fenrir';
   store.set('userVoice', voice);
+  const provider = localStorage.getItem('jarvis_active_provider') || 'gemini';
+  store.set('_activeProvider', provider);
   const theme = localStorage.getItem('jarvis_theme') || 'dark';
   applyTheme(theme);
   applyFontSize(parseInt(localStorage.getItem('jarvis_fontsize') || '2'));
-  applyAnimations(localStorage.getItem('jarvis_anims') !== 'false');
+  const isAnimsEnabled = localStorage.getItem('jarvis_anims') !== 'false';
+  applyAnimations(isAnimsEnabled);
+  const animCheckbox = document.getElementById('anim-toggle');
+  if (animCheckbox) animCheckbox.checked = isAnimsEnabled;
   applyGraphicsQuality(localStorage.getItem('jarvis_graphics') || 'high');
-  store.set('speechEnergyThreshold', parseInt(localStorage.getItem('jarvis_vad_threshold') || '300'));
-  const alwaysOn = localStorage.getItem('jarvis_always_on') === 'true';
-  document.getElementById('always-on-toggle').checked = alwaysOn;
-  store.set('alwaysOn', alwaysOn);
 
   updateUserBadge();
 }
@@ -112,19 +110,18 @@ export async function saveConfig() {
     lang: document.getElementById('lang-select')?.value || 'es',
     username: document.getElementById('username-input')?.value.trim() || '',
     title: document.getElementById('title-input')?.value.trim() || '',
-    personality: document.getElementById('personality-select')?.value || 'professional',
+    personality: document.getElementById('personality-select')?.value || 'companion',
     voice: document.getElementById('voice-select')?.value || 'Fenrir',
     voiceGender: document.getElementById('voice-gender-select')?.value || 'male',
     length: document.getElementById('length-select')?.value || 'normal',
     fontSize: document.getElementById('font-size-slider')?.value || '2',
-    sfx: document.getElementById('sfx-toggle')?.checked ?? true,
     anims: document.getElementById('anim-toggle')?.checked ?? true,
     city: document.getElementById('city-input')?.value.trim() || '',
     rules: document.getElementById('rules-textarea')?.value.trim() || '',
     context: document.getElementById('context-textarea')?.value.trim() || '',
-    vadThreshold: document.getElementById('vad-slider')?.value || '300',
-    alwaysOn: document.getElementById('always-on-toggle')?.checked ?? false,
     graphics: document.getElementById('graphics-select')?.value || 'high',
+    interruptMode: document.getElementById('interrupt-toggle')?.checked ?? true,
+    vadThreshold: document.getElementById('vad-slider')?.value || '300',
     // Permisos
     permOpenBrowser: document.getElementById('perm-open-browser')?.checked ?? true,
     permLaunchApp: document.getElementById('perm-launch-app')?.checked ?? true,
@@ -140,6 +137,12 @@ export async function saveConfig() {
     permSystemStats: document.getElementById('perm-system-stats')?.checked ?? true,
     permReminder: document.getElementById('perm-set-reminder')?.checked ?? true,
     permNotifications: document.getElementById('perm-notifications')?.checked ?? true,
+    permExecuteArbitrary: document.getElementById('perm-execute-arbitrary')?.checked ?? true,
+    permKillProcess: document.getElementById('perm-kill-process')?.checked ?? true,
+    permSensitivePaths: document.getElementById('perm-sensitive-paths')?.checked ?? false,
+    // Búsqueda Web
+    googleApiKey: document.getElementById('config-google-api-key')?.value.trim() || '',
+    googleCx: document.getElementById('config-google-cx')?.value.trim() || '',
   };
 
   const old = {
@@ -151,13 +154,15 @@ export async function saveConfig() {
     lang: localStorage.getItem('jarvis_lang') || 'es',
     city: localStorage.getItem('jarvis_city') || '',
     rules: localStorage.getItem('jarvis_rules') || '',
-    context: localStorage.getItem('jarvis_context') || ''
+    context: localStorage.getItem('jarvis_context') || '',
+    voiceGender: localStorage.getItem('jarvis_voice_gender') || 'male',
   };
 
   const needsReconnect = (fields.voice !== old.voice) || (fields.personality !== old.personality) ||
     (fields.length !== old.length) || (fields.username !== old.username) ||
     (fields.title !== old.title) || (fields.lang !== old.lang) || (fields.city !== old.city) ||
-    (fields.rules !== old.rules) || (fields.context !== old.context);
+    (fields.rules !== old.rules) || (fields.context !== old.context) ||
+    (fields.voiceGender !== old.voiceGender);
 
   localStorage.setItem('jarvis_lang', fields.lang);
   localStorage.setItem('jarvis_username', fields.username);
@@ -166,24 +171,32 @@ export async function saveConfig() {
   localStorage.setItem('jarvis_voice', fields.voice);
   localStorage.setItem('jarvis_length', fields.length);
   localStorage.setItem('jarvis_fontsize', fields.fontSize);
-  localStorage.setItem('jarvis_sfx', fields.sfx);
   localStorage.setItem('jarvis_anims', fields.anims);
   localStorage.setItem('jarvis_city', fields.city);
   localStorage.setItem('jarvis_rules', fields.rules);
   localStorage.setItem('jarvis_context', fields.context);
-  localStorage.setItem('jarvis_vad_threshold', fields.vadThreshold);
-  localStorage.setItem('jarvis_always_on', fields.alwaysOn);
   localStorage.setItem('jarvis_graphics', fields.graphics);
   localStorage.setItem('jarvis_voice_gender', fields.voiceGender);
+  localStorage.setItem('jarvis_interrupt_mode', fields.interruptMode ? 'true' : 'false');
+  localStorage.setItem('jarvis_vad_threshold', fields.vadThreshold);
+  localStorage.setItem('jarvis_google_api_key', fields.googleApiKey);
+  localStorage.setItem('jarvis_google_cx', fields.googleCx);
+  store.set('_activeProvider', 'gemini');
+
   // Guardar permisos
-  const permKeys = ['permOpenBrowser','permLaunchApp','permSetVolume','permFileOps','permExecutePS','permDownloadYT','permEditVideo','permScreenshot','permKeyboard','permClipboard','permFindFiles','permSystemStats','permReminder','permNotifications'];
+  const permKeys = ['permOpenBrowser','permLaunchApp','permSetVolume','permFileOps','permExecutePS','permDownloadYT','permEditVideo','permScreenshot','permKeyboard','permClipboard','permFindFiles','permSystemStats','permReminder','permNotifications','permExecuteArbitrary','permKillProcess','permSensitivePaths'];
   permKeys.forEach(k => localStorage.setItem(`jarvis_${k}`, fields[k] ? '1' : '0'));
+
+  // Guardar whitelist de alto riesgo
+  const whitelistEl = document.getElementById('risk-whitelist');
+  if (whitelistEl) {
+    localStorage.setItem('jarvis_risk_whitelist', whitelistEl.value);
+    import('../tools/executor.js').then(m => m.clearApprovedCache());
+  }
 
   updateUserBadge();
 
   store.set('userVoice', fields.voice);
-  store.set('speechEnergyThreshold', parseInt(fields.vadThreshold));
-  store.set('alwaysOn', fields.alwaysOn);
 
   const memory = store.get('userMemory');
   if (memory) {
@@ -335,28 +348,23 @@ function logConfig(type, message) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  // ── Gemini API Key — show/hide password & live test ──
-  const geminiKeyInput = document.getElementById('config-gemini-key');
-  const geminiToggle   = document.getElementById('config-gemini-toggle');
-  const geminiTestBtn  = document.getElementById('config-test-gemini-btn');
-  const geminiStatus   = document.getElementById('config-gemini-status');
+  // ── Universal API Key — Auto-detection & Testing ──
+  const uniKeyInput   = document.getElementById('config-universal-key');
+  const uniToggle     = document.getElementById('config-universal-toggle');
+  const uniTestBtn    = document.getElementById('config-test-universal-btn');
+  const uniStatus     = document.getElementById('config-universal-status');
+  const uniTypeTag    = document.getElementById('universal-key-type');
 
-  if (geminiToggle && geminiKeyInput) {
-    geminiToggle.addEventListener('click', () => {
-      const isPass = geminiKeyInput.type === 'password';
-      geminiKeyInput.type = isPass ? 'text' : 'password';
-      geminiToggle.textContent = isPass ? '🙈' : '👁';
+  if (uniToggle && uniKeyInput) {
+    uniToggle.addEventListener('click', () => {
+      const isPass = uniKeyInput.type === 'password';
+      uniKeyInput.type = isPass ? 'text' : 'password';
+      uniToggle.textContent = isPass ? '🙈' : '👁';
     });
   }
 
-  // Pre-fill saved key (masked)
-  const savedKey = localStorage.getItem('jarvis_gemini_api_key') || '';
-  if (geminiKeyInput && savedKey) geminiKeyInput.value = savedKey;
-
-  // ── Google Search API ─────────────────────────────────
   const googleKeyInput = document.getElementById('config-google-api-key');
-  const googleCxInput  = document.getElementById('config-google-cx');
-  const googleToggle   = document.getElementById('config-google-api-toggle');
+  const googleToggle = document.getElementById('config-google-api-toggle');
   if (googleToggle && googleKeyInput) {
     googleToggle.addEventListener('click', () => {
       const isPass = googleKeyInput.type === 'password';
@@ -364,71 +372,94 @@ document.addEventListener('DOMContentLoaded', () => {
       googleToggle.textContent = isPass ? '🙈' : '👁';
     });
   }
-  const savedGoogleKey = localStorage.getItem('jarvis_google_api_key') || '';
-  const savedGoogleCx  = localStorage.getItem('jarvis_google_cx') || '';
-  if (googleKeyInput && savedGoogleKey) googleKeyInput.value = savedGoogleKey;
-  if (googleCxInput && savedGoogleCx) googleCxInput.value = savedGoogleCx;
 
-  // Save Google keys on change
-  const _saveGoogleKeys = () => {
-    const k = googleKeyInput?.value?.trim() || '';
-    const c = googleCxInput?.value?.trim() || '';
-    if (k) localStorage.setItem('jarvis_google_api_key', k);
-    else localStorage.removeItem('jarvis_google_api_key');
-    if (c) localStorage.setItem('jarvis_google_cx', c);
-    else localStorage.removeItem('jarvis_google_cx');
-  };
-  if (googleKeyInput) googleKeyInput.addEventListener('change', _saveGoogleKeys);
-  if (googleCxInput) googleCxInput.addEventListener('change', _saveGoogleKeys);
+  // Pre-fill saved key (masked)
+  const savedKey = localStorage.getItem('jarvis_gemini_api_key') || localStorage.getItem('jarvis_openai_api_key') || '';
+  if (uniKeyInput && savedKey) {
+    uniKeyInput.value = savedKey;
+    _detectKeyProvider(savedKey);
+  }
 
-  if (geminiTestBtn && geminiKeyInput && geminiStatus) {
-    geminiTestBtn.addEventListener('click', async () => {
-      const key = geminiKeyInput.value.trim();
+  function _detectKeyProvider(key) {
+    if (!uniTypeTag) return;
+    const k = key.trim();
+    if (!k) {
+      uniTypeTag.textContent = '✨ Ingresá cualquier clave API para auto-detectar el proveedor.';
+      uniTypeTag.style.color = 'var(--primary)';
+      return;
+    }
+    if (k.startsWith('AIzaSy')) {
+      uniTypeTag.textContent = '⭐ Detectado: Google Gemini (Recomendado — Oficial)';
+      uniTypeTag.style.color = '#34c759';
+    } else if (k.startsWith('sk-proj-') || (k.startsWith('sk-') && !k.startsWith('sk-ant-'))) {
+      uniTypeTag.textContent = '🤖 Detectado: OpenAI (ChatGPT / GPT-4o)';
+      uniTypeTag.style.color = '#70d6ff';
+    } else if (k.startsWith('sk-ant-')) {
+      uniTypeTag.textContent = '🧠 Detectado: Anthropic (Claude Sonnet)';
+      uniTypeTag.style.color = '#a78bfa';
+    } else if (k.startsWith('gsk_')) {
+      uniTypeTag.textContent = '⚡ Detectado: Groq Cloud (Ultra Llama/Mixtral)';
+      uniTypeTag.style.color = '#ff9f0a';
+    } else {
+      uniTypeTag.textContent = '🔍 Detectado: Formato Estándar API Key';
+      uniTypeTag.style.color = 'var(--primary)';
+    }
+  }
+
+  if (uniKeyInput) {
+    uniKeyInput.addEventListener('input', (e) => {
+      _detectKeyProvider(e.target.value);
+    });
+  }
+
+  if (uniTestBtn && uniKeyInput && uniStatus) {
+    uniTestBtn.addEventListener('click', async () => {
+      const key = uniKeyInput.value.trim();
       if (!key) {
-        geminiStatus.textContent = '⚠ Introduce una API key primero.';
-        geminiStatus.style.color = 'var(--warning)';
-        geminiStatus.style.display = 'block';
+        uniStatus.textContent = '⚠ Introduce una clave API primero.';
+        uniStatus.style.color = 'var(--warning)';
+        uniStatus.style.display = 'block';
         return;
       }
-      geminiTestBtn.disabled = true;
-      geminiTestBtn.textContent = 'Probando…';
-      geminiStatus.style.display = 'none';
+      uniTestBtn.disabled = true;
+      uniTestBtn.textContent = 'Probando Clave…';
+      uniStatus.style.display = 'none';
 
       try {
-        // Lightweight REST ping — list models endpoint
-        const resp = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models?key=${key}`,
-          { signal: AbortSignal.timeout(8000) }
-        );
-        const data = await resp.json();
-        if (resp.ok && data.models) {
-          geminiStatus.textContent = '✅ Clave válida. Conexión con Gemini establecida.';
-          geminiStatus.style.color = 'var(--success)';
-          geminiStatus.style.background = 'rgba(46,213,115,0.08)';
-          // Persist the validated key
-          localStorage.setItem('jarvis_gemini_api_key', key);
-          try {
+        if (key.startsWith('AIzaSy')) {
+          // REST ping Gemini
+          const resp = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models?key=${key}`,
+            { signal: AbortSignal.timeout(8000) }
+          );
+          const data = await resp.json();
+          if (resp.ok && data.models) {
+            uniStatus.textContent = '✅ Clave Gemini válida. Conexión establecida con éxito.';
+            uniStatus.style.color = 'var(--success)';
+            uniStatus.style.background = 'rgba(46,213,115,0.08)';
+            localStorage.setItem('jarvis_gemini_api_key', key);
             await window.electronAPI?.setupGeminiKey(key);
-            geminiStatus.textContent = '✅ Clave válida. Guardada para esta sesión y futuras ejecuciones.';
-          } catch (err) {
-            geminiStatus.textContent = '✅ Clave válida, pero no se pudo sincronizar con el proceso principal.';
-            console.warn('[CONFIG] No se pudo guardar la clave en el proceso principal:', err.message);
+          } else {
+            uniStatus.textContent = `❌ Error Gemini: ${data?.error?.message || 'Clave no válida.'}`;
+            uniStatus.style.color = 'var(--danger)';
+            uniStatus.style.background = 'rgba(255,59,48,0.08)';
           }
-          window.electronAPI?.logToTerminal?.('info', '[CONFIG] API Key de Gemini validada y guardada.');
         } else {
-          const msg = data?.error?.message || 'Clave inválida o sin permisos.';
-          geminiStatus.textContent = `❌ Error: ${msg}`;
-          geminiStatus.style.color = 'var(--danger)';
-          geminiStatus.style.background = 'rgba(255,59,48,0.08)';
+          // General validation
+          uniStatus.textContent = '✅ Clave guardada y lista para peticiones de IA.';
+          uniStatus.style.color = 'var(--success)';
+          uniStatus.style.background = 'rgba(46,213,115,0.08)';
+          localStorage.setItem('jarvis_gemini_api_key', key);
+          await window.electronAPI?.setupGeminiKey(key);
         }
       } catch (err) {
-        geminiStatus.textContent = `❌ Sin conexión o timeout: ${err.message}`;
-        geminiStatus.style.color = 'var(--danger)';
-        geminiStatus.style.background = 'rgba(255,59,48,0.08)';
+        uniStatus.textContent = `❌ Sin conexión o timeout: ${err.message}`;
+        uniStatus.style.color = 'var(--danger)';
+        uniStatus.style.background = 'rgba(255,59,48,0.08)';
       } finally {
-        geminiStatus.style.display = 'block';
-        geminiTestBtn.disabled = false;
-        geminiTestBtn.textContent = 'Probar Clave';
+        uniStatus.style.display = 'block';
+        uniTestBtn.disabled = false;
+        uniTestBtn.textContent = 'Probar Clave API';
       }
     });
   }
@@ -470,23 +501,7 @@ document.addEventListener('DOMContentLoaded', () => {
           sent = result.success;
         }
 
-        // 2) Guardar copia local en servidor
-        try {
-          const formData = new FormData();
-          formData.append('message', message);
-          formData.append('version', version);
-          formData.append('timestamp', timestamp);
-          formData.append('user', user);
-          if (feedbackFile?.files[0]) {
-            const file = feedbackFile.files[0];
-            if (file.size > 25 * 1024 * 1024) throw new Error('El archivo supera el límite de 25 MB.');
-            formData.append('attachment', file, file.name);
-          }
-          const resp = await fetch('http://localhost:3001/api/feedback', {
-            method: 'POST', body: formData, signal: AbortSignal.timeout(15000)
-          });
-          if (resp.ok) sent = true;
-        } catch (e) {}
+
 
         if (sent) {
           if (feedbackStatus) {
@@ -520,6 +535,59 @@ document.addEventListener('DOMContentLoaded', () => {
   const graphicsSelect = document.getElementById('graphics-select');
   if (graphicsSelect) {
     graphicsSelect.value = localStorage.getItem('jarvis_graphics') || 'high';
+    graphicsSelect.addEventListener('change', () => {
+      applyGraphicsQuality(graphicsSelect.value);
+      _syncGfxCards(graphicsSelect.value);
+    });
+  }
+
+  function _syncGfxCards(level) {
+    document.querySelectorAll('.gfx-card').forEach(card => {
+      card.classList.toggle('selected', card.getAttribute('data-gfx') === level);
+    });
+  }
+  document.querySelectorAll('.gfx-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const level = card.getAttribute('data-gfx');
+      if (!level) return;
+      if (graphicsSelect) graphicsSelect.value = level;
+      applyGraphicsQuality(level);
+      _syncGfxCards(level);
+    });
+  });
+  _syncGfxCards(localStorage.getItem('jarvis_graphics') || 'high');
+
+  // ── Voice preview ──────────────────────────────────────
+  const voicePreviewBtn = document.getElementById('voice-preview-btn');
+  const voicePreviewStatus = document.getElementById('voice-preview-status');
+  if (voicePreviewBtn) {
+    voicePreviewBtn.addEventListener('click', () => {
+      const voiceName = document.getElementById('voice-select')?.value || 'Fenrir';
+      if (typeof window.speechSynthesis === 'undefined') {
+        if (voicePreviewStatus) {
+          voicePreviewStatus.textContent = '❌ Voz local no disponible.';
+          voicePreviewStatus.style.color = 'var(--danger)';
+        }
+        return;
+      }
+      const utterance = new SpeechSynthesisUtterance('Hola, soy Jarvis. Tu asistente personal.');
+      utterance.lang = 'es-ES';
+      utterance.rate = 1;
+      const voices = window.speechSynthesis.getVoices();
+      const voice = voices.find(v => v.name === voiceName);
+      if (voice) utterance.voice = voice;
+      utterance.onstart = () => {
+        if (voicePreviewStatus) {
+          voicePreviewStatus.textContent = `🔊 Reproduciendo "${voiceName}"…`;
+          voicePreviewStatus.style.color = 'var(--primary)';
+        }
+      };
+      utterance.onend = () => {
+        if (voicePreviewStatus) voicePreviewStatus.textContent = '';
+      };
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(utterance);
+    });
   }
 
   // ── Voice gender init ─────────────────────────────────
@@ -528,26 +596,63 @@ document.addEventListener('DOMContentLoaded', () => {
     voiceGenderSelect.value = localStorage.getItem('jarvis_voice_gender') || 'male';
   }
 
-  // ── Permissions init ──────────────────────────────────
-  const permMap = {
-    'perm-open-browser': 'jarvis_permOpenBrowser',
-    'perm-launch-app': 'jarvis_permLaunchApp',
-    'perm-set-volume': 'jarvis_permSetVolume',
-    'perm-file-operations': 'jarvis_permFileOps',
-    'perm-execute-ps': 'jarvis_permExecutePS',
-    'perm-download-youtube': 'jarvis_permDownloadYT',
-    'perm-edit-video': 'jarvis_permEditVideo',
-    'perm-screenshot': 'jarvis_permScreenshot',
-    'perm-keyboard': 'jarvis_permKeyboard',
-    'perm-clipboard': 'jarvis_permClipboard',
-    'perm-find-files': 'jarvis_permFindFiles',
-    'perm-system-stats': 'jarvis_permSystemStats',
-    'perm-set-reminder': 'jarvis_permReminder',
-    'perm-notifications': 'jarvis_permNotifications',
+  // ── Permissions init: Category toggles ────────────────
+  const CATEGORIES = {
+    system: {
+      key: 'jarvis_cat_system',
+      perms: [
+        'jarvis_permOpenBrowser', 'jarvis_permLaunchApp', 'jarvis_permSetVolume',
+        'jarvis_permExecutePS', 'jarvis_permNotifications', 'jarvis_permSystemStats',
+        'jarvis_permExecuteArbitrary', 'jarvis_permKillProcess', 'jarvis_permSensitivePaths'
+      ]
+    },
+    files: {
+      key: 'jarvis_cat_files',
+      perms: [
+        'jarvis_permFileOps', 'jarvis_permFindFiles', 'jarvis_permDownloadYT', 'jarvis_permEditVideo'
+      ]
+    },
+    screen: {
+      key: 'jarvis_cat_screen',
+      perms: [
+        'jarvis_permScreenshot', 'jarvis_permKeyboard', 'jarvis_permClipboard', 'jarvis_permReminder'
+      ]
+    },
+    integrations: {
+      key: 'jarvis_cat_integrations',
+      perms: []
+    }
   };
-  Object.entries(permMap).forEach(([elId, storageKey]) => {
-    const el = document.getElementById(elId);
-    if (el) el.checked = localStorage.getItem(storageKey) !== '0';
+
+  function _applyCategory(catId, enabled) {
+    const cat = CATEGORIES[catId];
+    if (!cat) return;
+    localStorage.setItem(cat.key, enabled ? '1' : '0');
+    cat.perms.forEach(key => localStorage.setItem(key, enabled ? '1' : '0'));
+    // Sync kernel permissions
+    try {
+      const kp = JSON.parse(localStorage.getItem('jarvis_kernel_permissions') || '{}');
+      if (catId === 'system') kp.shell = enabled ? 'granted' : 'denied';
+      if (catId === 'screen') kp.screen = enabled ? 'granted' : 'denied';
+      localStorage.setItem('jarvis_kernel_permissions', JSON.stringify(kp));
+    } catch (e) {}
+    // Sync ps-executor system_execution_allowed (encrypted credentials)
+    if (catId === 'system' && window.electronAPI?.secureCredentialSet) {
+      window.electronAPI.secureCredentialSet('system_execution_allowed', enabled ? 'all' : '').catch(() => {});
+    }
+  }
+
+  // Load saved state per category
+  Object.keys(CATEGORIES).forEach(catId => {
+    const saved = localStorage.getItem(CATEGORIES[catId].key);
+    const el = document.getElementById('cat-' + catId);
+    if (el) {
+      const enabled = saved === null || saved !== '0';
+      el.checked = enabled;
+      el.addEventListener('change', () => _applyCategory(catId, el.checked));
+      // Sync all individual perms to match the category state
+      _applyCategory(catId, enabled);
+    }
   });
 
   // ── VAD preset buttons ────────────────────────────────
@@ -557,7 +662,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const slider = document.getElementById('vad-slider');
       if (slider) {
         slider.value = val;
-        // Trigger visual update if any
+        localStorage.setItem('jarvis_vad_threshold', val);
         slider.dispatchEvent(new Event('input'));
       }
     });
@@ -578,3 +683,35 @@ document.addEventListener('DOMContentLoaded', () => {
     if (_bubbleStates.includes(current)) _stateEls.forEach(el => el.classList.add(current));
   }
 });
+
+export async function initOllamaConfigUI() {
+  const genderSelect = document.getElementById('voice-gender-select');
+  const voiceSelect = document.getElementById('voice-select');
+  if (genderSelect && voiceSelect) {
+    const filterVoices = () => {
+      const gender = genderSelect.value;
+      const allVoices = [
+        { value: 'Fenrir', label: 'Fenrir (Masculino)', gender: 'male' },
+        { value: 'Puck', label: 'Puck (Neutro)', gender: 'male' },
+        { value: 'Charon', label: 'Charon (Grave)', gender: 'male' },
+        { value: 'Aoede', label: 'Aoede (Femenino)', gender: 'female' },
+        { value: 'Athena', label: 'Athena (Femenino)', gender: 'female' },
+      ];
+      const filtered = allVoices.filter(v => v.gender === gender);
+      const currentValue = voiceSelect.value;
+      voiceSelect.innerHTML = '';
+      filtered.forEach(v => {
+        const opt = document.createElement('option');
+        opt.value = v.value;
+        opt.textContent = v.label;
+        voiceSelect.appendChild(opt);
+      });
+      if (filtered.some(v => v.value === currentValue)) {
+        voiceSelect.value = currentValue;
+      }
+    };
+    genderSelect.addEventListener('change', filterVoices);
+    genderSelect.value = localStorage.getItem('jarvis_voice_gender') || 'male';
+    filterVoices();
+  }
+}

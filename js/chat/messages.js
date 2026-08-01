@@ -3,7 +3,7 @@ import { STATE } from '../state/constants.js';
 import { bus } from '../utils/event-bus.js';
 import { autoCorrectSpanish } from '../utils/autocorrect.js';
 import { addArtifact } from '../documents/artifacts.js';
-import { _separateThinkingAndResponse, updateThinkingPanel, _convLog, extractCodeBlocks, _extractTitle } from './text-processor.js';
+import { _separateThinkingAndResponse, _convLog, extractCodeBlocks, _extractTitle, renderRichText } from './text-processor.js';
 
 let _fadeTimer = null;
 let _typewriterTarget = '';
@@ -34,8 +34,8 @@ function _getEls() {
 function _updateBubbleVisibility() {
   const els = _getEls();
   if (!els.msgArea) return;
-  const hasUser   = els.userPart   && els.userPart.style.display   === 'block';
-  const hasJarvis = els.jarvisPart && els.jarvisPart.style.display === 'block';
+  const hasUser   = els.userPart   && els.userPart.classList.contains('visible');
+  const hasJarvis = els.jarvisPart && els.jarvisPart.classList.contains('visible');
   const indActive = document.getElementById('msg-indicator')?.classList.contains('active');
 
   if (hasUser || hasJarvis || indActive) {
@@ -54,15 +54,23 @@ function _setUserText(text) {
   const els = _getEls();
   if (!els.userPart || !els.userText) return;
   els.userText.textContent = text;
-  els.userPart.style.display = text ? 'block' : 'none';
+  if (text) {
+    els.userPart.classList.add('visible');
+  } else {
+    els.userPart.classList.remove('visible');
+  }
   _updateBubbleVisibility();
 }
 
 function _setJarvisText(text) {
   const els = _getEls();
   if (!els.jarvisPart || !els.jarvisText) return;
-  els.jarvisText.textContent = text;
-  els.jarvisPart.style.display = text ? 'block' : 'none';
+  els.jarvisText.innerHTML = renderRichText(text);
+  if (text) {
+    els.jarvisPart.classList.add('visible');
+  } else {
+    els.jarvisPart.classList.remove('visible');
+  }
   _updateBubbleVisibility();
 }
 
@@ -72,7 +80,7 @@ function _showJarvisPanel() {
   const els = _getEls();
   if (!els.jarvisPart || !els.jarvisText) return;
   els.jarvisText.textContent = '';
-  els.jarvisPart.style.display = 'block';
+  els.jarvisPart.classList.add('visible');
   _updateBubbleVisibility();
 }
 
@@ -117,10 +125,10 @@ function _fadeOutMsg(cb) {
   }, 370);
 }
 
-export function _hideProgress() {
+export function _hideProgress(force = false) {
   const el = document.getElementById('progress-area');
   if (el) { el.classList.remove('visible'); el.style.display = 'none'; }
-  import('../ui/task-bubble.js').then(m => m.hideTaskBubble());
+  import('../ui/task-bubble.js').then(m => m.hideTaskBubble(force));
 }
 
 // ─── Typewriter — smooth, never blocks ───────────────────
@@ -130,7 +138,7 @@ function _startTypewriter() {
   if (els.jarvisText) els.jarvisText.classList.add('typing');
   _typewriterTimer = true;
 
-  const BASE_INTERVAL = 12; // ms/char baseline
+  const BASE_INTERVAL = 4; // ms/char baseline
 
   let nextTime = performance.now() + BASE_INTERVAL;
 
@@ -145,12 +153,12 @@ function _startTypewriter() {
       const catchUp = Math.max(0, Math.floor(elapsed / BASE_INTERVAL));
       const add = 1 + catchUp;
       _typewriterIndex = Math.min(_typewriterIndex + add, _typewriterTarget.length);
-      e.textContent = _typewriterTarget.substring(0, _typewriterIndex);
+      e.innerHTML = renderRichText(_typewriterTarget.substring(0, _typewriterIndex));
 
       // Ensure the panel is visible
       const part = _getEls().jarvisPart;
-      if (part && part.style.display !== 'block') {
-        part.style.display = 'block';
+      if (part && !part.classList.contains('visible')) {
+        part.classList.add('visible');
         _updateBubbleVisibility();
       }
 
@@ -170,29 +178,16 @@ function _stopTypewriter() {
   if (els.jarvisText) els.jarvisText.classList.remove('typing');
 }
 
-// ─── 1. USER — interim (real-time voice transcription) ───
-export function updateInterimUserMessage(text) {
-  if (!text || !text.trim()) return;
-  _hideProgress();
-  // Only clear Jarvis text on the FIRST interim of a new turn
-  // (when Jarvis part is empty or it's a fresh turn)
-  const els = _getEls();
-  const jarvisHasText = els.jarvisText && els.jarvisText.textContent.trim().length > 0;
-  if (!jarvisHasText) {
-    _setJarvisText('');
-  }
-  _setUserText(text + '…');
-  _updateIndicator('user');
-}
-
 // ─── 2. USER — final confirmed message ───────────────────
 export function appendUserMessage(rawText, correctedText) {
   if (!rawText || !rawText.trim()) return;
   const text = correctedText || rawText;
-  _hideProgress();
+  _hideProgress(true);
   _stopTypewriter();
   _typewriterTarget = '';
   _typewriterIndex  = 0;
+
+  bus.emit('ui:links-hide');
 
   _convLog('conv_separator', '');
   _convLog('conv_user', text);
@@ -205,21 +200,6 @@ export function appendUserMessage(rawText, correctedText) {
   _log('info', `[USUARIO] ${text.substring(0, 100)}`);
 }
 
-export function removeInterimUserMessage() {
-  const els = _getEls();
-  if (els.userPart && els.userPart.style.display === 'block') {
-    // Only clear the '…' interim if user text is still interim
-    const t = els.userText?.textContent || '';
-    if (t.endsWith('…')) {
-      _setUserText('');
-      _updateIndicator('none');
-    }
-  }
-}
-
-// ─── 3a. JARVIS — INSTANT display (voice output transcription) ────
-// Called with the FULL accumulated transcription text so far.
-// No typewriter — keeps pace with the audio stream.
 export function handleJarvisTranscriptInstant(fullText) {
   if (!fullText || !fullText.trim()) return;
   if (_fadeTimer) { clearTimeout(_fadeTimer); _fadeTimer = null; }
@@ -229,18 +209,18 @@ export function handleJarvisTranscriptInstant(fullText) {
 
   const els = _getEls();
   if (els.jarvisText) {
-    els.jarvisText.textContent = fullText;
+    const cleanText = fullText.replace(/<(?:think|thinking)>[\s\S]*?<\/\1>/gi, '').trim() || fullText;
+    els.jarvisText.innerHTML = renderRichText(cleanText);
     els.jarvisText.className   = 'msg-text jarvis-text';
     els.jarvisText.classList.remove('typing');
   }
-  if (els.jarvisPart) els.jarvisPart.style.display = 'block';
+  if (els.jarvisPart) els.jarvisPart.classList.add('visible');
   _updateBubbleVisibility();
   _setupCopyButtonOnFinalText();
 
   _showCancelButton(true);
 
   store.set('_currentTurnTextBuffer', fullText);
-  _convLog('conv_response', fullText.substring(0, 500));
   store.set('_turnState', 'responding');
 }
 
@@ -258,8 +238,6 @@ export function handleJarvisTextChunk(chunk) {
     }
     store.set('_currentTurnTextBuffer', buffer);
     const split = _separateThinkingAndResponse(buffer);
-    updateThinkingPanel(split.thinking);
-
     if (split.response && split.response.trim() !== '') {
       if (_fadeTimer) { clearTimeout(_fadeTimer); _fadeTimer = null; }
       _hideProgress();
@@ -288,62 +266,28 @@ export function handleJarvisTextChunk(chunk) {
   }
 }
 
-// ─── 4. Progress helpers ──────────────────────────────────
+// ─── 4. Progress helpers (Single Unified Task Bubble) ─────
 export async function showProgressSteps(current, total, description) {
   const m = await import('../ui/task-bubble.js');
   if (current === 1) m.showTaskBubble(total);
-  const state = current > 1 ? 'done' : 'active';
+  const state = current >= total ? 'done' : 'active';
   m.updateTask(current, description, state);
-  if (current >= total) setTimeout(() => m.completeTaskBubble(), 500);
+  if (current >= total) m.completeTaskBubble();
 }
 
-export function showProgressStep(type, description, detail) {
-  const els = _getEls();
-  if (!els.progArea) return;
-  if (_currentRole === 'jarvis') return;
-  els.progArea.style.display = 'flex';
-  els.progArea.classList.add('visible');
-  els.progSteps.style.display = 'flex';
-  if (els.progPct) els.progPct.style.display = 'none';
-
-  const step = document.createElement('div');
-  step.className = 'prog-step ' + type;
-  step.style.cssText = 'opacity:0;transform:translateY(4px)';
-  const icons = { info:'○', warning:'▲', success:'✓', error:'✗' };
-  const span = document.createElement('span');
-  span.className = 'step-icon';
-  span.textContent = icons[type] || '○';
-  step.appendChild(span);
-  const desc = document.createElement('span');
-  desc.className = 'step-desc';
-  desc.textContent = description;
-  step.appendChild(desc);
-  if (detail) {
-    const det = document.createElement('span');
-    det.className = 'step-detail';
-    det.textContent = detail;
-    step.appendChild(det);
+export async function showProgressStep(type, description, detail) {
+  const m = await import('../ui/task-bubble.js');
+  if (type === 'error') {
+    m.taskErrorBubble((detail || description || 'Fallo de ejecución').substring(0, 80));
+  } else {
+    m.updateTask(1, `${description}${detail ? ': ' + detail : ''}`, type === 'success' ? 'done' : 'active');
   }
-  els.progSteps.textContent = '';
-  els.progSteps.appendChild(step);
-  requestAnimationFrame(() => {
-    step.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
-    step.style.opacity    = '1';
-    step.style.transform  = 'translateY(0)';
-  });
 }
 
-export function showProgressPercent(pctValue) {
-  const els = _getEls();
-  if (!els.progArea) return;
-  if (_currentRole === 'jarvis') return;
-  els.progArea.style.display = 'flex';
-  els.progArea.classList.add('visible');
-  els.progPct.style.display = 'flex';
-  if (els.progSteps) els.progSteps.style.display = 'none';
+export async function showProgressPercent(pctValue) {
+  const m = await import('../ui/task-bubble.js');
   const clamped = Math.min(Math.max(pctValue, 0), 100);
-  if (els.progPctText) els.progPctText.textContent = clamped + '%';
-  if (els.progPctFill) els.progPctFill.style.width = clamped + '%';
+  m.updateTask(1, `Procesando: ${clamped}%`, clamped >= 100 ? 'done' : 'active');
 }
 
 export function hideProgress() { _hideProgress(); }
@@ -389,10 +333,10 @@ export function _resetTurnState() {
   _showCancelButton(false);
   _hideProgress();
   if (_fadeTimer) { clearTimeout(_fadeTimer); _fadeTimer = null; }
+  bus.emit('ui:links-hide');
   store.set('_currentTurnTextBuffer', '');
   store.set('_turnState', 'thinking');
   store.set('_thinkingPhaseStartTime', Date.now());
-  updateThinkingPanel('');
 }
 
 // ─── 6.5 Cancel response ─────────────────────────────────
@@ -414,12 +358,13 @@ export function cancelCurrentResponse() {
     store.set('_jarvisSpeechStarted', false);
     store.set('_turnTextShown', false);
     store.set('toolCount', 0);
-    updateThinkingPanel('');
     _log('info', 'Respuesta cancelada por el usuario');
-    // Reconectar WebSocket para limpiar estado del servidor
+    // Detener grabación de micrófono para que no mande PCM a la nueva conexión
+    import('../audio/recorder.js').then(m => m.stopRecording()).catch(() => {});
+    // Reconectar WebSocket — connectWebSocket ya limpia el proxy y cierra la WS anterior
     try {
       const { connectWebSocket } = await import('../Core/Connection/manager.js');
-      if (window.ws) { window.ws.close(1000); window.ws = null; }
+      store.set('isReconnectingIntentional', true);
       await connectWebSocket();
     } catch (e) {
       _log('warn', `Cancel reconnect: ${e.message}`);
@@ -429,7 +374,6 @@ export function cancelCurrentResponse() {
 
 // ─── 7. Close active Jarvis bubble (turn complete) ───────
 export function _closeActiveJarvisBubble() {
-  store.set('_pausePCM', false);
   _stopTypewriter();
   const els    = _getEls();
   const buffer = store.get('_currentTurnTextBuffer') || '';
@@ -437,10 +381,8 @@ export function _closeActiveJarvisBubble() {
   const finalText = split.response || _typewriterTarget || (els.jarvisText?.textContent?.trim() || '');
 
   if (finalText && els.jarvisText) {
-    els.jarvisText.textContent = finalText;
-    els.jarvisText.className   = 'msg-text jarvis-text';
-    els.jarvisText.classList.remove('typing');
-    if (els.jarvisPart) els.jarvisPart.style.display = 'block';
+    els.jarvisText.innerHTML = renderRichText(finalText);
+    if (els.jarvisPart) els.jarvisPart.classList.add('visible');
     _updateBubbleVisibility();
     _setupCopyButtonOnFinalText();
   }
@@ -479,7 +421,6 @@ export function _closeActiveJarvisBubble() {
   store.set('_currentTurnTextBuffer', '');
   store.set('_turnState', 'thinking');
   _showCancelButton(false);
-  updateThinkingPanel('');
 
   // Auto-fade after 15s inactivity
   if (_fadeTimer) clearTimeout(_fadeTimer);
@@ -489,6 +430,7 @@ export function _closeActiveJarvisBubble() {
 }
 
 // ─── Cancel button setup ──────────────────────────────
+let _escHandlerRef = null;
 function _setupCancelButton() {
   const btn = document.getElementById('msg-cancel-btn');
   if (!btn) return;
@@ -496,14 +438,16 @@ function _setupCancelButton() {
   const newBtn = btn.cloneNode(true);
   btn.parentNode.replaceChild(newBtn, btn);
   newBtn.addEventListener('click', () => cancelCurrentResponse());
-  // Escape key to cancel
-  const escHandler = (e) => {
+  // Escape key to cancel — keep reference to avoid listener leak
+  if (_escHandlerRef) {
+    document.removeEventListener('keydown', _escHandlerRef);
+  }
+  _escHandlerRef = (e) => {
     if (e.key === 'Escape' && store.get('_turnState') === 'responding') {
       cancelCurrentResponse();
     }
   };
-  document.removeEventListener('keydown', escHandler);
-  document.addEventListener('keydown', escHandler);
+  document.addEventListener('keydown', _escHandlerRef);
 }
 
 // Show cancel button when Jarvis is responding
@@ -522,11 +466,16 @@ function _getCopyBtn() {
     btn = document.createElement('button');
     btn.id = 'msg-copy-btn';
     btn.className = 'msg-copy-btn';
-    btn.innerHTML = '<span class="copy-icon">⎘</span><span class="copy-label">Copiar</span>';
+    btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span class="copy-label">Copiar</span>';
     btn.title = 'Copiar respuesta';
     btn.style.display = 'none';
+    const buttonsContainer = document.getElementById('msg-buttons');
     const jarvisPart = document.getElementById('msg-jarvis-part');
-    if (jarvisPart) jarvisPart.appendChild(btn);
+    if (buttonsContainer) {
+      buttonsContainer.prepend(btn);
+    } else if (jarvisPart) {
+      jarvisPart.appendChild(btn);
+    }
     btn.addEventListener('click', () => {
       const text = document.getElementById('msg-jarvis-text')?.textContent || '';
       if (!text) return;
@@ -534,7 +483,13 @@ function _getCopyBtn() {
         const label = btn.querySelector('.copy-label');
         if (label) {
           label.textContent = '✓ Copiado';
-          setTimeout(() => { label.textContent = 'Copiar'; }, 2000);
+          btn.style.borderColor = 'rgba(0, 255, 136, 0.4)';
+          btn.style.color = '#00ff88';
+          setTimeout(() => { 
+            label.textContent = 'Copiar'; 
+            btn.style.borderColor = '';
+            btn.style.color = '';
+          }, 2000);
         }
       }).catch(() => {});
     });
@@ -617,13 +572,31 @@ export function showChatStatus(phase, detail) {
 export function showDoneStatus(count) {
   if (count > 0) showProgressStep('success', 'Completado', `${count} herramienta(s) ejecutada(s)`);
 }
-export function appendVoiceNote() {}
-
 // ─── Text input send ──────────────────────────────────────
 export function sendTextMessage() {
   const textInput = document.getElementById('text-input');
   const text = textInput?.value?.trim();
   if (!text) return;
+
+  // Slash commands
+  if (text === '/debug') {
+    import('../Core/Connection/handler.js').then(m => {
+      const newMode = !localStorage.getItem('jarvis_debug');
+      m.setDebugMode(newMode);
+      if (newMode) localStorage.setItem('jarvis_debug', '1');
+      else localStorage.removeItem('jarvis_debug');
+      textInput.value = '';
+      appendSystemMessage(newMode ? 'Modo debug ACTIVADO — todos los detalles se muestran en la terminal.' : 'Modo debug DESACTIVADO.');
+    });
+    return;
+  }
+  if (text === '/history') {
+    const h = store.get('conversationHistory') || [];
+    textInput.value = '';
+    appendSystemMessage(`Historial: ${h.length} entradas. Revisá la terminal para más detalles.`);
+    console.table(h.map(e => ({ role: e.role, content: (e.content || '').substring(0, 60) })));
+    return;
+  }
 
   const correctedText = autoCorrectSpanish(text);
   const displayText   = correctedText || text;
@@ -631,7 +604,6 @@ export function sendTextMessage() {
   import('../audio/playback.js').then(async ({ stopAudioPlayback }) => {
     stopAudioPlayback();
     _resetTurnState();
-    store.set('_pausePCM', true);
     appendUserMessage(text, correctedText !== text ? correctedText : '');
     _log('info', `[TEXTO ENVIADO] "${text}"${correctedText ? ' → "' + correctedText + '"' : ''}`);
 
@@ -643,49 +615,70 @@ export function sendTextMessage() {
     store.set('startTime', Date.now());
     store.set('waitingForResponse', true);
 
-    const activeProvider = store.get('_activeProvider') || 'gemini';
-    if (activeProvider !== 'gemini') {
-      const { sendProviderMessage } = await import('../engines/provider-chat.js');
+    // ── ROUTING DE TEXTO ─────────────────────────────────────────────────
+    // Prioridad 1: WebSocket de Gemini Live (si está conectado)
+    const ws = window.ws;
+    if (ws && ws.readyState === 1) {
       const history = store.get('conversationHistory');
       history.push({ role: 'user', content: displayText });
       store.set('conversationHistory', [...history]);
-      const result = await sendProviderMessage(displayText);
-      if (result.response) {
-        history.push({ role: 'model', content: result.response });
-        store.set('conversationHistory', [...history]);
-        handleJarvisTextChunk(result.response);
+      const turns = history.slice(-40).map(e => ({
+        role: e.role === 'model' ? 'model' : 'user',
+        parts: [{ text: e.content }]
+      }));
+      try {
+        ws.send(JSON.stringify({
+          clientContent: { turns, turnComplete: true }
+        }));
+        return;
+      } catch (wsErr) {
+        _log('warn', `WS text send falló, intentando proveedor local: ${wsErr.message}`);
       }
+    }
+
+    // Prioridad 3: REST API de Gemini (fallback si WS caído y proveedor es gemini)
+    store.set('_textInputMode', true);
+    const historyRest = store.get('conversationHistory');
+    historyRest.push({ role: 'user', content: displayText });
+    store.set('conversationHistory', [...historyRest]);
+    const apiMessages = historyRest.slice(-40).map(e => ({
+      role: e.role === 'model' ? 'model' : 'user',
+      parts: [{ text: e.content }]
+    }));
+    let responseText = '';
+    try {
+      if (window.electronAPI?.geminiTextChat) {
+        const result = await window.electronAPI.geminiTextChat({ messages: apiMessages, systemInstruction: '' });
+        if (result.success) {
+          responseText = result.response;
+        } else {
+          throw new Error(result.error || 'Error en la API de Gemini');
+        }
+      } else {
+        throw new Error('geminiTextChat no disponible');
+      }
+    } catch (err) {
+      _log('error', `Error en geminiTextChat: ${err.message}`);
+      showSystemErrorMessage(`Error al comunicarse con Gemini: ${err.message}`);
       store.set('waitingForResponse', false);
       return;
     }
-
-    let ws = window.ws;
-    if (!ws || ws.readyState !== 1) {
-      const mm = await import('../system/model-manager.js');
-      if (mm.getMode() === 'local') {
-        const history = store.get('conversationHistory');
-        history.push({ role: 'user', content: displayText });
-        store.set('conversationHistory', [...history]);
-        return;
+    if (responseText) {
+      const { cleanModelText } = await import('../Core/Connection/handler.js');
+      const cleaned = cleanModelText(responseText);
+      if (cleaned) {
+        historyRest.push({ role: 'model', content: cleaned });
+        store.set('conversationHistory', [...historyRest]);
+        handleJarvisTextChunk(cleaned);
+        _log('info', `[TEXT] ${cleaned.substring(0, 80)}`);
       }
-      _log('info', 'WS cerrado — reconectando');
-      const { connectWebSocket } = await import('../Core/Connection/manager.js');
-      await connectWebSocket();
-      for (let i = 0; i < 20; i++) {
-        await new Promise(r => setTimeout(r, 100));
-        if (window.ws?.readyState === 1) break;
-      }
-      ws = window.ws;
-      if (!ws || ws.readyState !== 1) { showSystemErrorMessage('No se pudo reconectar.'); return; }
     }
+    store.set('waitingForResponse', false);
+    store.set('_textInputMode', false);
+    store.set('_turnState', 'thinking');
+    setTimeout(() => {
+      if (store.get('toolCount') === 0) store.setState(STATE.IDLE);
+    }, 100);
 
-    const history = store.get('conversationHistory');
-    const allTurns = (history || []).slice(-40).map(e => ({ role: e.role === 'user' ? 'user' : 'model', parts: [{ text: e.content }] }));
-    allTurns.push({ role: 'user', parts: [{ text: '[Texto] ' + displayText }] });
-    store.set('_textInputMode', true);
-    ws.send(JSON.stringify({
-      clientContent: { turns: allTurns, turnComplete: true }
-    }));
-    _log('info', 'Mensaje de texto enviado');
   });
 }

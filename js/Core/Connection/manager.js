@@ -7,34 +7,45 @@ import { updateDiagnostics } from '../../chat/diagnostics.js';
 import { handleWsMessage } from './handler.js';
 import { createLogger } from '../../utils/logger.js';
 import { bus } from '../../utils/event-bus.js';
+import { JARVIS_CONFIG } from '../../config/jarvis.config.js';
+
 const _log = createLogger('WS');
 
+let _generation = 0;
 let _proxyCleanupFn = null;
+let _ws = null;
 let _cachedSystemInstruction = null;
 let _cacheTime = 0;
-const CACHE_TTL = 60000;
+const CACHE_TTL = JARVIS_CONFIG.ws.cacheTtlMs;
 let reconnectTimer = null;
 let reconnectBackoff = 500;
 let _reconnectAttempts = 0;
-const RECONNECT_MAX_BACKOFF = 15000;
-const RECONNECT_JITTER = 500;
-const RECONNECT_MAX_ATTEMPTS = 15;
+const RECONNECT_MAX_BACKOFF = JARVIS_CONFIG.ws.reconnectMaxBackoffMs;
+const RECONNECT_JITTER = JARVIS_CONFIG.ws.reconnectJitterMs;
+const RECONNECT_MAX_ATTEMPTS = JARVIS_CONFIG.ws.reconnectMaxAttempts;
+
 
 function _scheduleReconnect(closeCode) {
   if (reconnectTimer) return;
   _reconnectAttempts++;
   if (_reconnectAttempts > RECONNECT_MAX_ATTEMPTS) {
-    _log('error', `Se alcanzó el límite de ${RECONNECT_MAX_ATTEMPTS} reintentos. Deteniendo reconexión.`);
-    const bar = document.getElementById('conn-bar');
-    if (bar) { const ct2 = bar.querySelector('.conn-bar-text'); if (ct2) ct2.innerText = 'Error de conexión — recarga la página o presiona Reconectar'; }
-    const si = document.getElementById('status-indicator');
-    if (si) si.innerText = 'ERROR DE CONEXIÓN';
+    _log('error', `Se alcanzó el límite de ${RECONNECT_MAX_ATTEMPTS} reintentos. Modo retry lento: cada 30s.`);
+    store.set('_wsReconnectPending', true);
+    store.set('_wsMaxRetriesExhausted', false);
     store.setState(STATE.ERROR);
-    store.set('_wsMaxRetriesExhausted', true);
+    const bar = document.getElementById('conn-bar');
+    if (bar) { const ct2 = bar.querySelector('.conn-bar-text'); if (ct2) ct2.innerText = 'Red inestable — reintentando cada 30s'; }
+    const si = document.getElementById('chat-header-status');
+    if (si) si.innerText = 'RECONECTANDO (LENTO)';
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null;
+      if (window.JarvisSupervisor) window.JarvisSupervisor.record('ws_reconnect_slow', { attempt: _reconnectAttempts });
+      connectWebSocket();
+    }, 30000);
     return;
   }
   store.set('_wsReconnectPending', true);
-  if (closeCode === 1011) {
+  if (closeCode === 1011 || closeCode === 1007) {
     reconnectBackoff = Math.max(reconnectBackoff, 3000);
     reconnectBackoff = Math.min(reconnectBackoff * 3, RECONNECT_MAX_BACKOFF);
   }
@@ -51,12 +62,6 @@ function _scheduleReconnect(closeCode) {
 
 function _resetReconnectBackoff() { reconnectBackoff = 500; _reconnectAttempts = 0; store.set('_wsMaxRetriesExhausted', false); }
 
-export async function ensureAlwaysListening() {
-  if (!store.get('alwaysListen')) return;
-  const { ensureMicrophoneActive } = await import('../../audio/recorder.js');
-  await ensureMicrophoneActive(true);
-}
-
 function _showConnectionBar(text) {
   const bar = document.getElementById('conn-bar');
   if (bar) {
@@ -64,14 +69,14 @@ function _showConnectionBar(text) {
     if (ct) ct.innerText = text || 'Conexión perdida — reconectando...';
     bar.style.display = 'flex';
   }
-  const si = document.getElementById('status-indicator');
+  const si = document.getElementById('chat-header-status');
   if (si) si.innerText = 'RECONECTANDO...';
 }
 
 function _hideConnectionBar() {
   const bar = document.getElementById('conn-bar');
   if (bar) bar.style.display = 'none';
-  const si = document.getElementById('status-indicator');
+  const si = document.getElementById('chat-header-status');
   if (si) si.innerText = 'SISTEMAS ONLINE';
 }
 
@@ -93,7 +98,9 @@ function _setupWsProxy(handlers) {
     if (window.JarvisSupervisor) window.JarvisSupervisor.recordWsMessage('recv', data);
     if (wsProxy.onmessage) wsProxy.onmessage({ data });
   });
+  const myGen = _generation;
   const cleanupStatus = window.electronAPI.onWsStatus((status) => {
+    if (myGen !== _generation) return; // Ignorar eventos stale de conexiones anteriores
     if (status.type === 'open') { wsProxy.readyState = 1; wsProxy.onopen?.(status.event); }
     else if (status.type === 'close') { wsProxy.readyState = 3; wsProxy.onclose?.(status.event); }
     else if (status.type === 'error') { wsProxy.readyState = 3; wsProxy.onerror?.(status.event); }
@@ -109,7 +116,10 @@ function _setupWsProxy(handlers) {
       });
     }
   });
-  window.ws = wsProxy;
+  _ws = wsProxy;
+  try {
+    Object.defineProperty(window, 'ws', { get: () => _ws, set: (v) => { _log('warn', 'Intento de reemplazar window.ws desde fuera — ignorado'); }, configurable: true, enumerable: true });
+  } catch (e) { window.ws = wsProxy; }
   _proxyCleanupFn = () => {
     cleanupMsg(); cleanupStatus();
     wsProxy.send = () => {}; wsProxy.close = () => {};
@@ -118,23 +128,21 @@ function _setupWsProxy(handlers) {
 
 function _cleanupWsProxy() {
   if (_proxyCleanupFn) { _proxyCleanupFn(); _proxyCleanupFn = null; }
-  delete window.ws;
+  _ws = null;
+  try { delete window.ws; } catch (e) {}
 }
+
+export function getWs() { return _ws; }
+export function sendWsMessage(msg) { if (_ws?.readyState === 1) { _ws.send(typeof msg === 'string' ? msg : JSON.stringify(msg)); } }
 
 let _wsConnectTimeout = null;
 let _wsMutex = false;
 
 export async function connectWebSocket() {
   if (_wsMutex) { _log('warn', 'WS connect ya en progreso — ignorando llamada duplicada'); return; }
+  _generation++;
   _wsMutex = true;
   const cleanup = () => { _wsMutex = false; };
-  const activeProvider = store.get('_activeProvider');
-  if (activeProvider && activeProvider !== 'gemini') {
-    _log('info', `Provider ${activeProvider} no requiere WebSocket — omitiendo`);
-    store.set('_wsConnecting', false);
-    store.setState(STATE.IDLE);
-    cleanup(); return;
-  }
   if (_wsConnectTimeout) clearTimeout(_wsConnectTimeout);
   _hideConnectionBar();
   store.set('_wsConnecting', true);
@@ -144,19 +152,16 @@ export async function connectWebSocket() {
   _cleanupWsProxy();
   updateDiagnostics('WS', 'CONECTANDO...');
 
-  // Verify API key before attempting connection
-  let apiKey = localStorage.getItem('jarvis_gemini_api_key');
+  // Verify API key via secure IPC (never stored in localStorage)
+  let apiKey = null;
+  try {
+    if (window.electronAPI?.secureCredentialGet) {
+      apiKey = await window.electronAPI.secureCredentialGet('GEMINI_API_KEY');
+      if (apiKey) apiKey = apiKey.trim();
+    }
+  } catch (e) {}
   if (!apiKey) {
-    // Fallback: buscar en almacenamiento seguro (Windows Credential Manager)
-    try {
-      if (window.electronAPI?.secureCredentialGet) {
-        const savedKey = await window.electronAPI.secureCredentialGet('GEMINI_API_KEY');
-        if (savedKey && savedKey.trim().length >= 10) {
-          apiKey = savedKey.trim();
-          localStorage.setItem('jarvis_gemini_api_key', apiKey);
-        }
-      }
-    } catch (e) {}
+    apiKey = (typeof process !== 'undefined' && process.env) ? process.env.GEMINI_API_KEY : undefined;
   }
   if (!apiKey) {
     _log('warn', 'WS: no hay API key — abortando conexión');
@@ -164,7 +169,7 @@ export async function connectWebSocket() {
     store.set('_wsConnecting', false);
     store.setState(STATE.ERROR);
     showSystemErrorMessage('SISTEMAS INCOMPLETOS: GEMINI_API_KEY no configurada en el archivo .env.');
-    const si2 = document.getElementById('status-indicator');
+    const si2 = document.getElementById('chat-header-status');
     if (si2) { si2.innerText = 'ERROR DE CONFIGURACIÓN'; si2.classList.add('listening'); }
     cleanup();
     return;
@@ -172,11 +177,36 @@ export async function connectWebSocket() {
 
   _wsConnectTimeout = setTimeout(() => {
     if (store.get('_wsConnecting')) {
-      _log('error', 'WS connect timeout (10s) — forzando cierre');
+      _log('error', `WS connect timeout (${JARVIS_CONFIG.ws.connectTimeoutMs}ms) — forzando cierre`);
       window.electronAPI.wsClose();
       _scheduleReconnect();
     }
-  }, 10000);
+  }, JARVIS_CONFIG.ws.connectTimeoutMs);
+
+  // Pre-build system instruction WHILE the TCP handshake happens — shaves 1-3s off first-response
+  let _prewarmPromise = null;
+  const now2 = Date.now();
+  if (!_cachedSystemInstruction || (now2 - _cacheTime) > CACHE_TTL) {
+    _prewarmPromise = (async () => {
+      try {
+        const userMemory = store.get('userMemory');
+        let memoryContext = '';
+        try {
+          const { getMemoryContext } = await import('../../memory/memory-manager.js');
+          const recentHistory = store.get('conversationHistory');
+          const query = recentHistory?.slice(-3)?.map(m => m.content).join(' ') || userMemory?.userContext || 'información importante del usuario, horarios, materias, hechos';
+          memoryContext = await getMemoryContext(query, 8);
+        } catch {}
+        const inst = await buildSystemInstruction(userMemory, memoryContext);
+        _cachedSystemInstruction = inst;
+        _cacheTime = Date.now();
+        return inst;
+      } catch (e) {
+        _log('error', `Prewarm system instruction failed: ${e.message}`);
+        return _cachedSystemInstruction || '';
+      }
+    })();
+  }
 
   _setupWsProxy({
     onopen: async () => {
@@ -186,44 +216,51 @@ export async function connectWebSocket() {
       _hideConnectionBar();
       store.set('_wsConnecting', false);
       store.set('_wsReconnectPending', false);
-      store.set('lastTranscriptionTime', 0);
       _log('info', '=== WEBSOCKET CONECTADO ===');
       store.set('_reconnectCooldown', true);
       setTimeout(() => store.set('_reconnectCooldown', false), 800);
       if (window.JarvisSupervisor) window.JarvisSupervisor.record('ws_connect', {});
-      document.getElementById('status-indicator')?.classList.remove('listening');
+      document.getElementById('chat-header-status')?.classList.remove('listening');
       store.setState(STATE.IDLE);
       store.set('isReconnectingIntentional', false);
       _resetReconnectBackoff();
       if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
 
-      const userMemory = store.get('userMemory');
-      const now = Date.now();
+      // Use pre-warmed instruction if available, otherwise await it
       let systemInstruction = _cachedSystemInstruction;
-      if (!systemInstruction || (now - _cacheTime) > CACHE_TTL) {
-        systemInstruction = await buildSystemInstruction(userMemory);
-        _cachedSystemInstruction = systemInstruction;
-        _cacheTime = now;
+      if (_prewarmPromise) {
+        try { systemInstruction = await _prewarmPromise; } catch {}
+        _prewarmPromise = null;
+      }
+      if (!systemInstruction) {
+        try {
+          const userMemory = store.get('userMemory');
+          systemInstruction = await buildSystemInstruction(userMemory, '');
+          _cachedSystemInstruction = systemInstruction;
+          _cacheTime = Date.now();
+        } catch {}
       }
       const generationConfig = {
         responseModalities: ['AUDIO'],
-        temperature: 0.6,
-        topP: 0.9,
-        speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Fenrir' } } }
+        temperature: JARVIS_CONFIG.ai.temperature,
+        topP: JARVIS_CONFIG.ai.topP,
+        speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: store.get('userVoice') || JARVIS_CONFIG.ai.defaultVoice } } }
       };
       const setupMsg = {
         setup: {
-          model: 'models/gemini-2.5-flash-native-audio-preview-12-2025',
+          model: JARVIS_CONFIG.ai.model,
           generationConfig,
+          // Forzar español: mejora dramática en precisión de transcripción
           inputAudioTranscription: {},
+          outputAudioTranscription: {},
           realtimeInputConfig: {
-              automaticActivityDetection: {
-                disabled: false,
-                startOfSpeechSensitivity: 'START_SENSITIVITY_HIGH',
-                endOfSpeechSensitivity: 'END_SENSITIVITY_LOW',
-                prefixPaddingMs: 300,
-                silenceDurationMs: 2000
-              }
+            automaticActivityDetection: JARVIS_CONFIG.vad,
+            // Permitir interrupciones en cualquier momento
+            activityHandling: 'START_OF_ACTIVITY_INTERRUPTS',
+          },
+          contextWindowCompression: {
+            triggerTokens: 25600,
+            slidingWindow: { targetTokens: 12800 }
           },
           systemInstruction: { parts: [{ text: systemInstruction }] },
           tools: [
@@ -258,16 +295,14 @@ export async function connectWebSocket() {
       cleanup();
       bus.emit(EVENTS.WS_DISCONNECTED);
       store.set('_wsConnecting', false);
-      store.set('lastTranscriptionTime', 0);
+      // Invalidate system instruction cache so next reconnect gets fresh rules
+      _cachedSystemInstruction = null;
       _log('warn', `=== WS CERRADO === código: ${event.code} | razón: ${event.reason || 'none'} | limpio: ${event.wasClean}`);
       if (window.JarvisSupervisor) window.JarvisSupervisor.record('ws_disconnect', { code: event.code, reason: event.reason });
       updateDiagnostics('WS', 'DESCONECTADO');
       const sessionVal = document.getElementById('diag-session');
       if (sessionVal) { sessionVal.innerText = 'INACTIVO'; sessionVal.style.color = 'rgba(255, 255, 255, 0.4)'; }
       _showConnectionBar('Conexión perdida — reconectando...');
-      if (store.get('alwaysListen')) {
-        store.set('micActive', false);
-      }
       store.setState(STATE.ERROR);
       if (!store.get('isReconnectingIntentional')) {
         _scheduleReconnect(event.code);
@@ -289,6 +324,7 @@ export async function connectWebSocket() {
     }
   }).catch(e => {
     _log('error', `wsConnect promise error: ${e.message}`);
+    cleanup();
     _scheduleReconnect();
   });
 }

@@ -7,29 +7,28 @@ const CREDENTIALS_FILE = path.join(app.getPath('userData'), 'jarvis_credentials.
 
 function _getMachineKey() {
   const keyPath = path.join(app.getPath('userData'), '.jarvis_key');
-  // Intentar leer key existente
+
+  if (!safeStorage.isEncryptionAvailable()) {
+    // Sin cifrado del OS disponible: no podemos proteger la clave.
+    // Lanzar error explícito — mejor fallar que guardar secretos en texto plano.
+    throw new Error('safeStorage no disponible en este sistema. El almacenamiento seguro requiere acceso al keychain del OS.');
+  }
+
   if (fs.existsSync(keyPath)) {
     try {
-      if (safeStorage.isEncryptionAvailable()) {
-        const encrypted = fs.readFileSync(keyPath);
-        return safeStorage.decryptString(encrypted).toString('utf8');
-      }
-    } catch (e) {}
-    // Fallback: key en texto plano (migración o safeStorage no disponible)
-    return fs.readFileSync(keyPath, 'utf8');
-  }
-  // Generar nueva key
-  const newKey = crypto.randomBytes(32).toString('hex');
-  try {
-    if (safeStorage.isEncryptionAvailable()) {
-      const encrypted = safeStorage.encryptString(newKey);
-      fs.writeFileSync(keyPath, encrypted);
-    } else {
-      fs.writeFileSync(keyPath, newKey, 'utf8');
+      const encrypted = fs.readFileSync(keyPath);
+      return safeStorage.decryptString(encrypted).toString('utf8');
+    } catch (e) {
+      // Si la clave existente no se puede descifrar (ej. cambio de usuario), regenerar.
+      console.warn('[SECURE] No se pudo descifrar la clave existente, regenerando:', e.message);
+      try { fs.unlinkSync(keyPath); } catch {}
     }
-  } catch (e) {
-    fs.writeFileSync(keyPath, newKey, 'utf8');
   }
+
+  // Generar nueva clave y cifrarla con safeStorage del OS
+  const newKey = crypto.randomBytes(32).toString('hex');
+  const encrypted = safeStorage.encryptString(newKey);
+  fs.writeFileSync(keyPath, encrypted);
   return newKey;
 }
 
